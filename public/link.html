@@ -1,0 +1,50 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <title>AutoBudget — Connect Accounts</title>
+  <style>
+    body { font-family: system-ui, sans-serif; max-width: 480px; margin: 80px auto; padding: 0 20px; }
+    h1 { font-size: 1.4rem; }
+    button { background: #1a1a1a; color: white; border: none; padding: 12px 24px; border-radius: 6px; font-size: 1rem; cursor: pointer; }
+    #status { margin-top: 16px; color: #666; }
+  </style>
+</head>
+<body>
+  <h1>AutoBudget — Connect Bank Accounts</h1>
+  <p>Click below to connect your bank accounts, credit cards, and payment apps.</p>
+  <button id="launch">Connect Account</button>
+  <div id="status"></div>
+  <script src="https://cdn.plaid.com/link/v2/stable/link-initialize.js"></script>
+  <script>
+    const token = '__LINK_TOKEN__'
+    const urlToken = new URLSearchParams(location.search).get('token')
+    const status = document.getElementById('status')
+
+    const handler = Plaid.create({
+      token,
+      onSuccess(publicToken, metadata) {
+        status.textContent = `Connecting ${metadata.institution.name}…`
+        fetch(`/link/exchange?token=${urlToken}`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            public_token: publicToken,
+            institution_id: metadata.institution.institution_id,
+            institution_name: metadata.institution.name,
+            accounts: metadata.accounts,
+          }),
+        })
+          .then(r => r.json())
+          .then(d => { status.textContent = `✅ Connected ${d.institution} (${d.accounts} accounts). Syncing transactions in background…` })
+          .catch(() => { status.textContent = '❌ Error connecting account.' })
+      },
+      onExit(err) {
+        if (err) status.textContent = `Error: ${err.display_message ?? err.error_message}`
+      },
+    })
+
+    document.getElementById('launch').addEventListener('click', () => handler.open())
+  </script>
+</body>
+</html>
