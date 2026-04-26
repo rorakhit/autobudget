@@ -2,6 +2,10 @@ import type { FastifyRequest, FastifyReply } from 'fastify'
 import * as jose from 'jose'
 import { createHash } from 'crypto'
 import { plaidClient } from './client.js'
+import { db } from '../db/client.js'
+import { syncTransactions } from './sync.js'
+import { checkAlertsForTransaction } from '../alerts/rules.js'
+import { handlePaycheckDetected } from '../reports/generate.js'
 
 interface RawBody {
   _raw: Buffer
@@ -12,13 +16,10 @@ async function verifyPlaidSignature(token: string, rawBody: Buffer): Promise<boo
   try {
     const header = jose.decodeProtectedHeader(token)
     if (!header.kid) return false
-
     const keyResponse = await plaidClient.webhookVerificationKeyGet({ key_id: header.kid })
     const jwk = await jose.importJWK(keyResponse.data.key as jose.JWK)
-
     const { payload } = await jose.compactVerify(token, jwk)
     const claims = JSON.parse(new TextDecoder().decode(payload)) as { request_body_sha256: string }
-
     const bodyHash = createHash('sha256').update(rawBody).digest('hex')
     return claims.request_body_sha256 === bodyHash
   } catch {
@@ -26,21 +27,59 @@ async function verifyPlaidSignature(token: string, rawBody: Buffer): Promise<boo
   }
 }
 
+async function getPlaidItemByPlaidId(plaidItemId: string): Promise<string | null> {
+  const { data } = await db
+    .from('plaid_items')
+    .select('id')
+    .eq('plaid_item_id', plaidItemId)
+    .single()
+  return data?.id ?? null
+}
+
 export async function webhookHandler(req: FastifyRequest, reply: FastifyReply) {
   const token = req.headers['plaid-verification-token'] as string | undefined
   const body = req.body as RawBody
 
-  if (!token) {
-    return reply.code(401).send({ error: 'Missing verification token' })
-  }
+  if (!token) return reply.code(401).send({ error: 'Missing verification token' })
 
   const valid = await verifyPlaidSignature(token, body._raw)
-  if (!valid) {
-    return reply.code(401).send({ error: 'Invalid webhook signature' })
-  }
+  if (!valid) return reply.code(401).send({ error: 'Invalid webhook signature' })
 
   const event = body._parsed
-  req.log.info({ webhook_type: event['webhook_type'], webhook_code: event['webhook_code'] }, 'Webhook received')
+  const webhookType = event['webhook_type'] as string
+  const webhookCode = event['webhook_code'] as string
+  const plaidItemId = event['item_id'] as string
 
-  await reply.send({ ok: true })
+  req.log.info({ webhookType, webhookCode }, 'Plaid webhook received')
+
+  await reply.send({ ok: true })  // Acknowledge immediately
+
+  // Process asynchronously after reply
+  setImmediate(async () => {
+    try {
+      if (webhookType === 'TRANSACTIONS' && webhookCode === 'SYNC_UPDATES_AVAILABLE') {
+        const itemId = await getPlaidItemByPlaidId(plaidItemId)
+        if (!itemId) return
+
+        const stats = await syncTransactions(itemId)
+        req.log.info(stats, 'Transaction sync complete')
+
+        const { data: recentTx } = await db
+          .from('transactions')
+          .select('*')
+          .eq('account_id', itemId)
+          .order('created_at', { ascending: false })
+          .limit(stats.added + stats.modified)
+
+        for (const tx of recentTx ?? []) {
+          await checkAlertsForTransaction(tx)
+          if (tx.is_income) {
+            await handlePaycheckDetected(tx)
+          }
+        }
+      }
+    } catch (err) {
+      req.log.error(err, 'Webhook processing error')
+    }
+  })
 }
