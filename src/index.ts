@@ -6,6 +6,7 @@ import { dirname, join } from 'path'
 import { fileURLToPath } from 'url'
 import { webhookHandler } from './plaid/webhook.js'
 import { linkHandler, linkExchangeHandler, setupGetHandler, setupPostHandler } from './plaid/link.js'
+import { startCronJobs } from './reports/cron.js'
 
 const __dirname = dirname(fileURLToPath(import.meta.url))
 
@@ -40,3 +41,4 @@ app.post('/setup', setupPostHandler)
 
 const port = Number(process.env.PORT ?? 3000)
 await app.listen({ port, host: '0.0.0.0' })
+startCronJobs()
