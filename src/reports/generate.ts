@@ -176,6 +176,35 @@ export async function handlePaycheckDetected(tx: Transaction): Promise<void> {
   const notionPageUrl = await writeNotionReport(agg, narrative, 'biweekly')
   await updateNotionDashboards(agg)
 
+  if (agg.creditSummary.trend === 'growing') {
+    const { data: priorSnapshots } = await db
+      .from('balance_snapshots')
+      .select('account_id, balance, snapshot_at')
+      .order('snapshot_at', { ascending: false })
+      .limit(agg.creditSummary.cards.length * 4)
+
+    const byAccount: Record<string, number[]> = {}
+    for (const snap of priorSnapshots ?? []) {
+      if (!byAccount[snap.account_id]) byAccount[snap.account_id] = []
+      if (byAccount[snap.account_id].length < 3) byAccount[snap.account_id].push(Number(snap.balance))
+    }
+
+    const grewTwoPeriods = Object.values(byAccount).every(
+      balances => balances.length >= 3 && balances[0] > balances[1] && balances[1] > balances[2]
+    )
+
+    if (grewTwoPeriods) {
+      const { enrichAlertContext } = await import('../alerts/enrich.js')
+      const { sendAlert } = await import('../alerts/gmail.js')
+      const enriched = await enrichAlertContext('credit_growing_trend', {
+        trend: 'growing',
+        totalBalance: agg.creditSummary.totalBalance,
+        totalUtilization: agg.creditSummary.totalUtilization,
+      })
+      await sendAlert({ type: 'credit_growing_trend', data: { totalBalance: agg.creditSummary.totalBalance }, enrichedContext: enriched })
+    }
+  }
+
   const topCategories = Object.entries(agg.categoryBreakdown)
     .sort((a, b) => b[1] - a[1])
     .slice(0, 3)
