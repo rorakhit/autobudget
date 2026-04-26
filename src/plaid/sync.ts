@@ -1,6 +1,7 @@
 import { plaidClient } from './client.js'
 import { db } from '../db/client.js'
 import { categorizeTransaction } from '../categorize/categorize.js'
+import { appendFlaggedTransaction } from '../reports/notion.js'
 import type { Transaction } from 'plaid'
 
 async function getAccountId(plaidAccountId: string): Promise<string | null> {
@@ -48,6 +49,10 @@ async function storeTransaction(tx: Transaction, accountId: string): Promise<voi
   }, { onConflict: 'plaid_transaction_id' })
 
   if (error) throw error
+
+  if (flagged && category && confidence !== null) {
+    await appendFlaggedTransaction(merchantName, amount, tx.date, category, confidence).catch(() => {})
+  }
 
   if (isRecurring && merchantName) {
     await db.from('recurring_charges').upsert({

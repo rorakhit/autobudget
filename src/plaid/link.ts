@@ -2,6 +2,7 @@ import type { FastifyRequest, FastifyReply } from 'fastify'
 import { plaidClient } from './client.js'
 import { db } from '../db/client.js'
 import { syncTransactions } from './sync.js'
+import { writeNotionHomepage } from '../reports/notion.js'
 import { CountryCode, Products } from 'plaid'
 import { readFileSync } from 'fs'
 import { fileURLToPath } from 'url'
@@ -115,6 +116,8 @@ export async function setupPostHandler(req: FastifyRequest, reply: FastifyReply)
       target_value: parseFloat(body['target_value']),
     })
   }
+
+  await writeNotionHomepage().catch(() => {})
 
   await reply.send({ ok: true, message: 'Setup complete' })
 }
