@@ -11,6 +11,7 @@ import { rulesPageHandler, listRulesHandler, createRuleHandler, deleteRuleHandle
 import { settingsPageHandler, settingsDataHandler, renameAccountHandler, addCategoryHandler, deleteCategoryHandler, updateAprHandler, updateLoanHandler } from './plaid/settings.js'
 import { paycheckPageHandler, paycheckDataHandler, setPaycheckAccountHandler, updateRecurringAllocationHandler, removeRecurringHandler } from './plaid/paycheck.js'
 import { appleCardPageHandler, appleCardStatusHandler, appleCardImportHandler } from './plaid/apple-card.js'
+import { homeStatsHandler } from './plaid/home.js'
 import { authHandler, logoutHandler } from './auth.js'
 import { startCronJobs } from './reports/cron.js'
 
@@ -47,6 +48,7 @@ app.get('/', async (_req, reply) => {
 app.post('/auth', authHandler)
 app.get('/auth/logout', logoutHandler)
 app.get('/health', async () => ({ status: 'ok', ts: new Date().toISOString() }))
+app.get('/home/stats', homeStatsHandler)
 app.post('/webhook', webhookHandler)
 app.get('/link', linkHandler)
 app.get('/link/token', linkTokenHandler)
