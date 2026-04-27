@@ -132,6 +132,19 @@ export async function linkExchangeHandler(req: FastifyRequest, reply: FastifyRep
   if (error) return reply.code(500).send({ error: error.message })
 
   for (const acct of accounts) {
+    // Skip if an account with the same mask + type already exists at this institution
+    // (prevents duplicates when the same card appears under a second linked item)
+    if (acct.mask) {
+      const { data: existing } = await db
+        .from('accounts')
+        .select('id')
+        .eq('mask', acct.mask)
+        .eq('type', acct.type)
+        .neq('plaid_account_id', acct.id)
+        .limit(1)
+      if (existing?.length) continue
+    }
+
     await db.from('accounts').upsert({
       plaid_item_id: item.id,
       plaid_account_id: acct.id,
