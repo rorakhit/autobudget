@@ -8,7 +8,7 @@ import { webhookHandler } from './plaid/webhook.js'
 import { linkHandler, linkTokenHandler, linkedAccountsHandler, linkExchangeHandler, oauthReturnHandler, repairWebhooksHandler, syncAllHandler, refreshNotionHandler, setupGetHandler, setupPostHandler } from './plaid/link.js'
 import { reviewPageHandler, reviewTransactionsHandler, reviewCorrectHandler, merchantTransactionsHandler, correctTransactionHandler, confirmTransactionHandler, confirmMerchantHandler } from './plaid/review.js'
 import { rulesPageHandler, listRulesHandler, createRuleHandler, deleteRuleHandler } from './plaid/rules.js'
-import { settingsPageHandler, settingsDataHandler, renameAccountHandler, addCategoryHandler, deleteCategoryHandler } from './plaid/settings.js'
+import { settingsPageHandler, settingsDataHandler, renameAccountHandler, addCategoryHandler, deleteCategoryHandler, updateAprHandler } from './plaid/settings.js'
 import { startCronJobs } from './reports/cron.js'
 
 const __dirname = dirname(fileURLToPath(import.meta.url))
@@ -63,6 +63,7 @@ app.get('/settings/data', settingsDataHandler)
 app.post('/settings/rename-account', renameAccountHandler)
 app.post('/settings/add-category', addCategoryHandler)
 app.delete('/settings/category/:name', deleteCategoryHandler)
+app.post('/settings/update-apr', updateAprHandler)
 
 const port = Number(process.env.PORT ?? 3000)
 await app.listen({ port, host: '0.0.0.0' })

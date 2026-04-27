@@ -26,19 +26,23 @@ export async function settingsPageHandler(req: FastifyRequest, reply: FastifyRep
 export async function settingsDataHandler(req: FastifyRequest, reply: FastifyReply) {
   if (!checkSetupToken(req, reply)) return
 
-  const [{ data: accounts }, allCategories, { data: custom }] = await Promise.all([
+  const [{ data: accounts }, allCategories, { data: custom }, { data: creditAccounts }] = await Promise.all([
     db.from('accounts')
       .select('id, name, display_name, mask, type, subtype, plaid_items(institution_name)')
       .order('name'),
     getAllCategories(),
     db.from('custom_categories').select('name').order('name'),
+    db.from('credit_accounts').select('account_id, apr, credit_limit'),
   ])
+
+  const aprMap = Object.fromEntries((creditAccounts ?? []).map(r => [r.account_id, r]))
 
   await reply.send({
     accounts: accounts ?? [],
     categories: allCategories,
     systemCategories: CATEGORIES,
     customCategories: (custom ?? []).map(r => r.name),
+    aprMap,
   })
 }
 
@@ -88,6 +92,25 @@ export async function deleteCategoryHandler(req: FastifyRequest, reply: FastifyR
   }
 
   const { error } = await db.from('custom_categories').delete().eq('name', name)
+  if (error) return reply.code(500).send({ error: error.message })
+  await reply.send({ ok: true })
+}
+
+export async function updateAprHandler(req: FastifyRequest, reply: FastifyReply) {
+  if (!checkSetupToken(req, reply)) return
+
+  const { account_id, apr, credit_limit } =
+    ((req.body as any)._parsed ?? req.body) as { account_id: string; apr: number; credit_limit: number }
+
+  if (!account_id || isNaN(Number(apr)) || isNaN(Number(credit_limit))) {
+    return reply.code(400).send({ error: 'account_id, apr, and credit_limit required' })
+  }
+
+  const { error } = await db.from('credit_accounts').upsert(
+    { account_id, apr: Number(apr), credit_limit: Number(credit_limit) },
+    { onConflict: 'account_id' }
+  )
+
   if (error) return reply.code(500).send({ error: error.message })
   await reply.send({ ok: true })
 }

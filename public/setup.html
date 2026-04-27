@@ -49,10 +49,10 @@
           <div class="card-row">
             <strong>${acct.name}${acct.mask ? ` ····${acct.mask}` : ''}</strong>
             <label>APR (%)
-              <input type="number" name="apr_${acct.id}" step="0.01" min="0" max="100" placeholder="e.g. 24.99" required>
+              <input type="number" name="apr_${acct.id}" step="0.01" min="0" max="100" placeholder="e.g. 24.99" value="${acct.apr ?? ''}" required>
             </label>
             <label>Credit Limit ($)
-              <input type="number" name="limit_${acct.id}" step="0.01" min="0" placeholder="e.g. 5000" required>
+              <input type="number" name="limit_${acct.id}" step="0.01" min="0" placeholder="e.g. 5000" value="${acct.credit_limit ?? ''}" required>
             </label>
           </div>`
       })

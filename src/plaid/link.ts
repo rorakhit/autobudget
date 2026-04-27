@@ -150,13 +150,16 @@ export async function linkExchangeHandler(req: FastifyRequest, reply: FastifyRep
 export async function setupGetHandler(req: FastifyRequest, reply: FastifyReply) {
   if (!checkSetupToken(req, reply)) return
 
-  const { data: creditAccounts } = await db
-    .from('accounts')
-    .select('id, name, mask')
-    .eq('type', 'credit')
+  const [{ data: creditAccounts }, { data: existingAprs }] = await Promise.all([
+    db.from('accounts').select('id, name, mask').eq('type', 'credit'),
+    db.from('credit_accounts').select('account_id, apr, credit_limit'),
+  ])
+
+  const aprMap = Object.fromEntries((existingAprs ?? []).map(r => [r.account_id, r]))
+  const accounts = (creditAccounts ?? []).map(a => ({ ...a, ...aprMap[a.id] }))
 
   const html = readFileSync(join(__dirname, '../../public/setup.html'), 'utf8')
-    .replace('__ACCOUNTS_JSON__', JSON.stringify(creditAccounts ?? []))
+    .replace('__ACCOUNTS_JSON__', JSON.stringify(accounts))
 
   await reply.type('text/html').send(html)
 }
