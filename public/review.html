@@ -1,0 +1,207 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <title>AutoBudget — Review Categories</title>
+  <style>
+    * { box-sizing: border-box; }
+    body { font-family: system-ui, sans-serif; max-width: 860px; margin: 40px auto; padding: 0 20px; color: #111; }
+    h1 { font-size: 1.4rem; margin-bottom: 4px; }
+    .subtitle { color: #666; font-size: 0.9rem; margin-bottom: 24px; }
+    .filters { display: flex; gap: 12px; margin-bottom: 20px; align-items: center; }
+    .filters input { padding: 7px 12px; border: 1px solid #ccc; border-radius: 6px; font-size: 0.9rem; width: 240px; }
+    .filters label { font-size: 0.9rem; color: #444; display: flex; align-items: center; gap: 6px; }
+    table { width: 100%; border-collapse: collapse; font-size: 0.9rem; }
+    th { text-align: left; padding: 8px 12px; border-bottom: 2px solid #eee; color: #666; font-weight: 600; font-size: 0.8rem; text-transform: uppercase; letter-spacing: 0.04em; }
+    td { padding: 8px 12px; border-bottom: 1px solid #f0f0f0; vertical-align: middle; }
+    tr:hover td { background: #fafafa; }
+    .confidence { display: inline-block; padding: 2px 8px; border-radius: 99px; font-size: 0.8rem; font-weight: 600; }
+    .conf-high { background: #d1fae5; color: #065f46; }
+    .conf-mid  { background: #fef3c7; color: #92400e; }
+    .conf-low  { background: #fee2e2; color: #991b1b; }
+    .sample { color: #888; font-size: 0.8rem; }
+    select { padding: 5px 8px; border: 1px solid #ccc; border-radius: 5px; font-size: 0.85rem; background: white; }
+    select.changed { border-color: #6366f1; background: #eef2ff; }
+    button.save { padding: 5px 14px; background: #6366f1; color: white; border: none; border-radius: 5px; font-size: 0.85rem; cursor: pointer; display: none; }
+    button.save:hover { background: #4f46e5; }
+    button.save.visible { display: inline-block; }
+    button.saved { background: #10b981; }
+    #save-all { padding: 9px 20px; background: #1a1a1a; color: white; border: none; border-radius: 6px; font-size: 0.9rem; cursor: pointer; }
+    #save-all:disabled { opacity: 0.4; cursor: default; }
+    #save-all:hover:not(:disabled) { background: #333; }
+    .toolbar { display: flex; justify-content: space-between; align-items: center; margin-bottom: 12px; }
+    #pending-count { font-size: 0.85rem; color: #6366f1; font-weight: 600; }
+    #status { font-size: 0.85rem; color: #666; margin-top: 12px; min-height: 20px; }
+    .empty { text-align: center; padding: 60px 0; color: #999; }
+  </style>
+</head>
+<body>
+  <h1>AutoBudget — Review Categories</h1>
+  <p class="subtitle">Merchants sorted by lowest confidence first. Correcting a merchant updates all its transactions and trains future categorization.</p>
+
+  <div class="filters">
+    <input id="search" type="text" placeholder="Search merchant…">
+    <label><input id="flagged-only" type="checkbox" checked> Flagged only (confidence &lt; 80)</label>
+  </div>
+
+  <div class="toolbar">
+    <span id="pending-count"></span>
+    <button id="save-all" disabled>Save all changes</button>
+  </div>
+
+  <table>
+    <thead>
+      <tr>
+        <th>Merchant</th>
+        <th>Txns</th>
+        <th>Avg</th>
+        <th>Confidence</th>
+        <th>Category</th>
+        <th></th>
+      </tr>
+    </thead>
+    <tbody id="tbody"></tbody>
+  </table>
+  <div id="status"></div>
+
+  <script>
+    const urlToken = new URLSearchParams(location.search).get('token')
+    const tbody = document.getElementById('tbody')
+    const searchInput = document.getElementById('search')
+    const flaggedOnly = document.getElementById('flagged-only')
+    const saveAllBtn = document.getElementById('save-all')
+    const pendingCount = document.getElementById('pending-count')
+    const statusEl = document.getElementById('status')
+
+    let allMerchants = []
+    let categories = []
+    const changes = new Map() // merchant_name -> new category
+
+    function confClass(c) {
+      if (c >= 80) return 'conf-high'
+      if (c >= 50) return 'conf-mid'
+      return 'conf-low'
+    }
+
+    function render() {
+      const q = searchInput.value.toLowerCase()
+      const onlyFlagged = flaggedOnly.checked
+
+      const filtered = allMerchants.filter(m => {
+        if (onlyFlagged && m.minConfidence >= 80 && !changes.has(m.merchant)) return false
+        if (q && !m.merchant.toLowerCase().includes(q)) return false
+        return true
+      })
+
+      if (!filtered.length) {
+        tbody.innerHTML = '<tr><td colspan="6" class="empty">No merchants to review.</td></tr>'
+        return
+      }
+
+      tbody.innerHTML = filtered.map(m => {
+        const currentCat = changes.get(m.merchant) ?? m.category
+        const avg = (m.totalAmount / m.count).toFixed(2)
+        const sampleDates = m.sample.map(s => s.date).join(', ')
+        const isChanged = changes.has(m.merchant)
+        const opts = categories.map(c =>
+          `<option value="${c}" ${c === currentCat ? 'selected' : ''}>${c}</option>`
+        ).join('')
+        return `<tr data-merchant="${m.merchant.replace(/"/g, '&quot;')}">
+          <td><strong>${m.merchant}</strong><br><span class="sample">${sampleDates}</span></td>
+          <td>${m.count}</td>
+          <td>$${avg}</td>
+          <td><span class="confidence ${confClass(m.minConfidence)}">${m.minConfidence}%</span></td>
+          <td><select class="cat-select ${isChanged ? 'changed' : ''}" data-original="${m.category}">${opts}</select></td>
+          <td><button class="save ${isChanged ? 'visible' : ''}" data-merchant="${m.merchant.replace(/"/g, '&quot;')}">Save</button></td>
+        </tr>`
+      }).join('')
+
+      updatePending()
+    }
+
+    function updatePending() {
+      const n = changes.size
+      pendingCount.textContent = n ? `${n} unsaved change${n > 1 ? 's' : ''}` : ''
+      saveAllBtn.disabled = n === 0
+    }
+
+    tbody.addEventListener('change', e => {
+      if (!e.target.classList.contains('cat-select')) return
+      const row = e.target.closest('tr')
+      const merchant = row.dataset.merchant
+      const original = e.target.dataset.original
+      if (e.target.value === original) {
+        changes.delete(merchant)
+        e.target.classList.remove('changed')
+        row.querySelector('.save').classList.remove('visible')
+      } else {
+        changes.set(merchant, e.target.value)
+        e.target.classList.add('changed')
+        row.querySelector('.save').classList.add('visible')
+      }
+      updatePending()
+    })
+
+    async function saveOne(merchant, category) {
+      const res = await fetch(`/review/correct?token=${urlToken}`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ merchant_name: merchant, category }),
+      })
+      if (!res.ok) throw new Error(await res.text())
+      return res.json()
+    }
+
+    tbody.addEventListener('click', async e => {
+      if (!e.target.classList.contains('save')) return
+      const merchant = e.target.dataset.merchant
+      const category = changes.get(merchant)
+      if (!category) return
+      e.target.disabled = true
+      try {
+        await saveOne(merchant, category)
+        changes.delete(merchant)
+        const m = allMerchants.find(x => x.merchant === merchant)
+        if (m) { m.category = category; m.minConfidence = 100 }
+        e.target.classList.add('saved')
+        setTimeout(() => render(), 600)
+      } catch {
+        statusEl.textContent = `❌ Failed to save ${merchant}`
+        e.target.disabled = false
+      }
+      updatePending()
+    })
+
+    saveAllBtn.addEventListener('click', async () => {
+      saveAllBtn.disabled = true
+      const entries = [...changes.entries()]
+      let saved = 0, failed = 0
+      for (const [merchant, category] of entries) {
+        try {
+          await saveOne(merchant, category)
+          changes.delete(merchant)
+          const m = allMerchants.find(x => x.merchant === merchant)
+          if (m) { m.category = category; m.minConfidence = 100 }
+          saved++
+        } catch {
+          failed++
+        }
+      }
+      statusEl.textContent = `✅ Saved ${saved}${failed ? ` — ❌ ${failed} failed` : ''}`
+      render()
+    })
+
+    searchInput.addEventListener('input', render)
+    flaggedOnly.addEventListener('change', render)
+
+    fetch(`/review/transactions?token=${urlToken}`)
+      .then(r => r.json())
+      .then(data => {
+        allMerchants = data.merchants
+        categories = data.categories
+        render()
+      })
+      .catch(() => { statusEl.textContent = '❌ Failed to load transactions.' })
+  </script>
+</body>
+</html>

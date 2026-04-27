@@ -6,6 +6,7 @@ import { dirname, join } from 'path'
 import { fileURLToPath } from 'url'
 import { webhookHandler } from './plaid/webhook.js'
 import { linkHandler, linkTokenHandler, linkedAccountsHandler, linkExchangeHandler, oauthReturnHandler, repairWebhooksHandler, syncAllHandler, setupGetHandler, setupPostHandler } from './plaid/link.js'
+import { reviewPageHandler, reviewTransactionsHandler, reviewCorrectHandler } from './plaid/review.js'
 import { startCronJobs } from './reports/cron.js'
 
 const __dirname = dirname(fileURLToPath(import.meta.url))
@@ -43,6 +44,9 @@ app.post('/link/exchange', linkExchangeHandler)
 app.get('/oauth-return', oauthReturnHandler)
 app.get('/setup', setupGetHandler)
 app.post('/setup', setupPostHandler)
+app.get('/review', reviewPageHandler)
+app.get('/review/transactions', reviewTransactionsHandler)
+app.post('/review/correct', reviewCorrectHandler)
 
 const port = Number(process.env.PORT ?? 3000)
 await app.listen({ port, host: '0.0.0.0' })
