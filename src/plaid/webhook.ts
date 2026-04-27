@@ -86,10 +86,19 @@ export async function webhookHandler(req: FastifyRequest, reply: FastifyReply) {
           await checkAlertsForTransaction(tx)
         }
 
-        // Fire paycheck report at most once per 5 days, only for large deposits (>= $500)
-        // to avoid triggering on inter-account transfers
-        const largeDeposit = (recentTx ?? []).find(tx => tx.is_income && Number(tx.amount) >= 500)
-        if (largeDeposit) {
+        // Fire paycheck report only from the designated paycheck account, at most once per 5 days
+        const { data: paycheckAccounts } = await db
+          .from('accounts')
+          .select('id')
+          .eq('is_paycheck_account', true)
+
+        const paycheckAccountIds = new Set((paycheckAccounts ?? []).map(a => a.id))
+
+        const paycheckDeposit = (recentTx ?? []).find(
+          tx => tx.is_income && Number(tx.amount) >= 500 && paycheckAccountIds.has(tx.account_id)
+        )
+
+        if (paycheckDeposit) {
           const fiveDaysAgo = new Date(Date.now() - 5 * 24 * 60 * 60 * 1000).toISOString()
           const { data: recentReport } = await db
             .from('savings_events')
@@ -99,7 +108,7 @@ export async function webhookHandler(req: FastifyRequest, reply: FastifyReply) {
             .single()
 
           if (!recentReport) {
-            await handlePaycheckDetected(largeDeposit)
+            await handlePaycheckDetected(paycheckDeposit)
           }
         }
       }

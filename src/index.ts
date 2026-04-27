@@ -9,6 +9,7 @@ import { linkHandler, linkTokenHandler, linkedAccountsHandler, linkExchangeHandl
 import { reviewPageHandler, reviewTransactionsHandler, reviewCorrectHandler, merchantTransactionsHandler, correctTransactionHandler, confirmTransactionHandler, confirmMerchantHandler } from './plaid/review.js'
 import { rulesPageHandler, listRulesHandler, createRuleHandler, deleteRuleHandler } from './plaid/rules.js'
 import { settingsPageHandler, settingsDataHandler, renameAccountHandler, addCategoryHandler, deleteCategoryHandler, updateAprHandler, updateLoanHandler } from './plaid/settings.js'
+import { paycheckPageHandler, paycheckDataHandler, setPaycheckAccountHandler, updateRecurringAllocationHandler } from './plaid/paycheck.js'
 import { startCronJobs } from './reports/cron.js'
 
 const __dirname = dirname(fileURLToPath(import.meta.url))
@@ -65,6 +66,10 @@ app.post('/settings/add-category', addCategoryHandler)
 app.delete('/settings/category/:name', deleteCategoryHandler)
 app.post('/settings/update-apr', updateAprHandler)
 app.post('/settings/update-loan', updateLoanHandler)
+app.get('/paycheck', paycheckPageHandler)
+app.get('/paycheck/data', paycheckDataHandler)
+app.post('/paycheck/set-account', setPaycheckAccountHandler)
+app.post('/paycheck/update-recurring', updateRecurringAllocationHandler)
 
 const port = Number(process.env.PORT ?? 3000)
 await app.listen({ port, host: '0.0.0.0' })
