@@ -51,7 +51,7 @@ Six pages updated automatically:
 - **Runtime:** TypeScript + Fastify 5, deployed on Railway
 - **Database:** Supabase (PostgreSQL) with Row Level Security
 - **Bank data:** Plaid API (webhook-driven, cursor-based sync)
-- **AI:** Claude API (`claude-sonnet-4-6`) — categorization, narratives, alert enrichment
+- **AI:** Claude API (`claude-haiku-4-5-20251001`) — categorization, narratives, alert enrichment
 - **Dashboard:** Notion API
 - **Alerts:** Gmail via nodemailer
 
