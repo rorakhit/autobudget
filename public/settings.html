@@ -45,8 +45,9 @@
 
     /* APR table */
     .apr-table { width: 100%; border-collapse: collapse; margin-bottom: 8px; }
-    .apr-table th { text-align: left; font-size: 0.78rem; font-weight: 600; color: #555; text-transform: uppercase; letter-spacing: 0.04em; padding: 0 8px 8px 0; }
+    .apr-table th { text-align: left; font-size: 0.78rem; font-weight: 600; color: #555; text-transform: uppercase; letter-spacing: 0.04em; padding: 0 8px 8px 0; vertical-align: bottom; }
     .apr-table td { padding: 6px 8px 6px 0; vertical-align: middle; }
+    .apr-table input[type="number"] { display: block; }
     .apr-table input[type="number"] { width: 100px; padding: 6px 8px; border: 1px solid #ddd; border-radius: 6px; font-size: 0.9rem; }
     .apr-table input[type="number"]:focus { outline: none; border-color: #6366f1; }
     .save-apr-btn { padding: 6px 14px; background: #6366f1; color: white; border: none; border-radius: 6px; font-size: 0.85rem; cursor: pointer; white-space: nowrap; }
@@ -131,8 +132,8 @@
         <table class="apr-table">
           <thead><tr>
             <th>Loan</th>
-            <th>APR (%) <span style="font-weight:400;color:#999">(optional)</span></th>
-            <th>Original Balance ($) <span style="font-weight:400;color:#999">(optional)</span></th>
+            <th>APR (%)<br><span style="font-weight:400;color:#999;text-transform:none;letter-spacing:0">(optional)</span></th>
+            <th>Original Balance ($)<br><span style="font-weight:400;color:#999;text-transform:none;letter-spacing:0">(optional)</span></th>
             <th></th>
             <th></th>
           </tr></thead>
