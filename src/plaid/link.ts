@@ -29,6 +29,7 @@ export async function linkHandler(req: FastifyRequest, reply: FastifyReply) {
     country_codes: [CountryCode.Us],
     language: 'en',
     webhook: process.env.PLAID_WEBHOOK_URL!,
+    redirect_uri: process.env.PLAID_REDIRECT_URI,
   })
 
   const html = readFileSync(join(__dirname, '../../public/link.html'), 'utf8')
@@ -86,6 +87,12 @@ export async function setupGetHandler(req: FastifyRequest, reply: FastifyReply) 
   const html = readFileSync(join(__dirname, '../../public/setup.html'), 'utf8')
     .replace('__ACCOUNTS_JSON__', JSON.stringify(creditAccounts ?? []))
 
+  await reply.type('text/html').send(html)
+}
+
+export async function oauthReturnHandler(req: FastifyRequest, reply: FastifyReply) {
+  if (!checkSetupToken(req, reply)) return
+  const html = readFileSync(join(__dirname, '../../public/oauth-return.html'), 'utf8')
   await reply.type('text/html').send(html)
 }
 

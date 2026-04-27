@@ -21,6 +21,8 @@
     const urlToken = new URLSearchParams(location.search).get('token')
     const status = document.getElementById('status')
 
+    localStorage.setItem('plaid_link_token', token)
+
     const handler = Plaid.create({
       token,
       onSuccess(publicToken, metadata) {
