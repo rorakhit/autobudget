@@ -76,3 +76,4 @@ coverage/
 # Implementation plans (AI-generated, not for public repo)
 # =============================================================================
 docs/superpowers/plans/
+.superpowers/
