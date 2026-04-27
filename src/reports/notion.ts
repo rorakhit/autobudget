@@ -283,18 +283,18 @@ export async function updateNotionDashboards(agg: PeriodAggregates): Promise<voi
   }
 }
 
-export async function appendFlaggedTransaction(
-  merchant: string,
-  amount: number,
-  date: string,
-  guessedCategory: string,
-  confidence: number
-): Promise<void> {
+export async function writeFlaggedTransactions(): Promise<void> {
+  const { data } = await import('../db/client.js').then(m =>
+    m.db.from('transactions')
+      .select('merchant_name, amount, date, category, category_confidence')
+      .eq('flagged_for_review', true)
+      .order('date', { ascending: false })
+      .limit(200)
+  )
+
   const flaggedId = await getOrCreatePage('flagged_transactions', '🚩 Flagged Transactions', ROOT_PAGE_ID)
-  await notion.blocks.children.append({
-    block_id: flaggedId,
-    children: [
-      bullet(`${date} | ${merchant} | $${amount.toFixed(2)} | Best guess: ${guessedCategory} (${confidence}% confidence)`),
-    ] as any,
-  })
+  const blocks = (data ?? []).map(tx =>
+    bullet(`${tx.date} | ${tx.merchant_name} | $${Number(tx.amount).toFixed(2)} | Best guess: ${tx.category} (${tx.category_confidence}% confidence)`)
+  )
+  await replacePageContent(flaggedId, blocks.length ? blocks : [bullet('No flagged transactions.')])
 }
