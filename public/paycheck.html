@@ -49,6 +49,8 @@
     .charge-save { padding: 5px 10px; background: none; border: 1px solid #ddd; border-radius: 6px; font-size: 0.78rem; color: #6366f1; cursor: pointer; white-space: nowrap; }
     .charge-save:hover { background: #eef2ff; }
     .charge-status { font-size: 0.75rem; color: #16a34a; width: 40px; text-align: center; }
+    .charge-remove { background: none; border: none; cursor: pointer; font-size: 1rem; color: #d1d5db; padding: 0 2px; line-height: 1; flex-shrink: 0; }
+    .charge-remove:hover { color: #dc2626; }
   </style>
 </head>
 <body>
@@ -125,6 +127,7 @@
           </div>
           <button class="charge-save">Save</button>
           <span class="charge-status"></span>
+          <button class="charge-remove" title="Not recurring — remove from list">×</button>
         </div>`).join('')
 
       list.querySelectorAll('.charge-row').forEach(row => {
@@ -142,6 +145,19 @@
             amtInput.disabled = !isPre
             if (!isPre) amtInput.value = ''
           })
+        })
+
+        row.querySelector('.charge-remove').addEventListener('click', async () => {
+          if (!confirm(`Remove "${rec.merchant_name}" from recurring charges?`)) return
+          try {
+            const res = await fetch(`/paycheck/remove-recurring/${id}?token=${urlToken}`, { method: 'DELETE' })
+            if (!res.ok) throw new Error((await res.json()).error)
+            recurring = recurring.filter(r => r.id !== id)
+            row.remove()
+            updateSummary()
+          } catch (err) {
+            statusEl.textContent = '❌'
+          }
         })
 
         saveBtn.addEventListener('click', async () => {

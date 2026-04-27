@@ -51,6 +51,14 @@ export async function setPaycheckAccountHandler(req: FastifyRequest, reply: Fast
   await reply.send({ ok: true })
 }
 
+export async function removeRecurringHandler(req: FastifyRequest, reply: FastifyReply) {
+  if (!checkSetupToken(req, reply)) return
+  const { id } = req.params as { id: string }
+  const { error } = await db.from('recurring_charges').update({ is_active: false }).eq('id', id)
+  if (error) return reply.code(500).send({ error: error.message })
+  await reply.send({ ok: true })
+}
+
 export async function updateRecurringAllocationHandler(req: FastifyRequest, reply: FastifyReply) {
   if (!checkSetupToken(req, reply)) return
 
