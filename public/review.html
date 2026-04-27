@@ -5,7 +5,7 @@
   <title>AutoBudget — Review Categories</title>
   <style>
     * { box-sizing: border-box; }
-    body { font-family: system-ui, sans-serif; max-width: 860px; margin: 40px auto; padding: 0 20px; color: #111; }
+    body { font-family: system-ui, sans-serif; max-width: 900px; margin: 40px auto; padding: 0 20px; color: #111; }
     h1 { font-size: 1.4rem; margin-bottom: 4px; }
     .subtitle { color: #666; font-size: 0.9rem; margin-bottom: 24px; }
     .filters { display: flex; gap: 16px; margin-bottom: 20px; align-items: center; }
@@ -14,7 +14,7 @@
     table { width: 100%; border-collapse: collapse; font-size: 0.9rem; }
     th { text-align: left; padding: 8px 12px; border-bottom: 2px solid #eee; color: #666; font-weight: 600; font-size: 0.8rem; text-transform: uppercase; letter-spacing: 0.04em; }
     td { padding: 8px 12px; border-bottom: 1px solid #f0f0f0; vertical-align: middle; }
-    tr:hover td { background: #fafafa; }
+    tr.merchant-row:hover > td { background: #fafafa; }
     .confidence { display: inline-block; padding: 2px 8px; border-radius: 99px; font-size: 0.8rem; font-weight: 600; }
     .conf-high { background: #d1fae5; color: #065f46; }
     .conf-mid  { background: #fef3c7; color: #92400e; }
@@ -23,7 +23,7 @@
     .sample-row { display: flex; gap: 8px; }
     .sample-date { color: #aaa; min-width: 80px; }
     .sample-amount { color: #555; min-width: 60px; }
-    .sample-name { color: #888; font-style: italic; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; max-width: 220px; }
+    .sample-name { color: #888; font-style: italic; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; max-width: 200px; }
     select { padding: 5px 8px; border: 1px solid #ccc; border-radius: 5px; font-size: 0.85rem; background: white; }
     select.changed { border-color: #6366f1; background: #eef2ff; }
     button.save { padding: 5px 14px; background: #6366f1; color: white; border: none; border-radius: 5px; font-size: 0.85rem; cursor: pointer; display: none; }
@@ -37,11 +37,26 @@
     #pending-count { font-size: 0.85rem; color: #6366f1; font-weight: 600; }
     #status { font-size: 0.85rem; color: #666; margin-top: 12px; min-height: 20px; }
     .empty { text-align: center; padding: 60px 0; color: #999; }
+
+    /* Expand button */
+    .expand-btn { background: none; border: none; cursor: pointer; font-size: 0.8rem; color: #6366f1; padding: 0; white-space: nowrap; }
+    .expand-btn:hover { text-decoration: underline; }
+
+    /* Transaction sub-rows */
+    tr.tx-row td { background: #f8f8ff; padding: 6px 12px 6px 28px; border-bottom: 1px solid #ececff; font-size: 0.85rem; }
+    tr.tx-row:last-of-type td { border-bottom: 2px solid #eee; }
+    tr.tx-row td.tx-meta { color: #777; }
+    .tx-rawname { font-style: italic; color: #999; font-size: 0.8rem; }
+    .tx-actions { display: flex; align-items: center; gap: 8px; }
+    button.tx-save { padding: 4px 12px; background: #6366f1; color: white; border: none; border-radius: 5px; font-size: 0.8rem; cursor: pointer; }
+    button.tx-save:disabled { opacity: 0.5; cursor: default; }
+    button.tx-save:hover:not(:disabled) { background: #4f46e5; }
+    .tx-saved-label { font-size: 0.8rem; color: #10b981; font-weight: 600; }
   </style>
 </head>
 <body>
   <h1>AutoBudget — Review Categories</h1>
-  <p class="subtitle">Merchants sorted by lowest confidence first. Correcting a merchant updates all its transactions and trains future categorization.</p>
+  <p class="subtitle">Merchants sorted by lowest confidence first. Correct a whole merchant or expand to fix individual transactions.</p>
 
   <div class="filters">
     <input id="search" type="text" placeholder="Search merchant…">
@@ -79,13 +94,20 @@
 
     let allMerchants = []
     let categories = []
-    const changes = new Map() // merchant_name -> new category
+    const changes = new Map()       // merchant -> new category
+    const expandedMerchants = new Set()
 
     function confClass(c) {
       if (c >= 80) return 'conf-high'
       if (c >= 50) return 'conf-mid'
       return 'conf-low'
     }
+
+    function categoryOpts(selected) {
+      return categories.map(c => `<option value="${c}" ${c === selected ? 'selected' : ''}>${c}</option>`).join('')
+    }
+
+    function merchantKey(name) { return name.replace(/"/g, '&quot;') }
 
     function render() {
       const q = searchInput.value.toLowerCase()
@@ -102,9 +124,12 @@
         return
       }
 
-      tbody.innerHTML = filtered.map(m => {
+      const rows = []
+      for (const m of filtered) {
         const currentCat = changes.get(m.merchant) ?? m.category
         const avg = (m.totalAmount / m.count).toFixed(2)
+        const isChanged = changes.has(m.merchant)
+        const isExpanded = expandedMerchants.has(m.merchant)
         const sampleHtml = m.sample.map(s =>
           `<div class="sample-row">
             <span class="sample-date">${s.date}</span>
@@ -112,20 +137,50 @@
             <span class="sample-name" title="${s.rawName}">${s.rawName}</span>
           </div>`
         ).join('')
-        const isChanged = changes.has(m.merchant)
-        const opts = categories.map(c =>
-          `<option value="${c}" ${c === currentCat ? 'selected' : ''}>${c}</option>`
-        ).join('')
-        return `<tr data-merchant="${m.merchant.replace(/"/g, '&quot;')}">
-          <td><strong>${m.merchant}</strong><div class="sample">${sampleHtml}</div></td>
+
+        rows.push(`<tr class="merchant-row" data-merchant="${merchantKey(m.merchant)}">
+          <td>
+            <strong>${m.merchant}</strong>
+            <div class="sample">${sampleHtml}</div>
+            <button class="expand-btn" data-merchant="${merchantKey(m.merchant)}">
+              ${isExpanded ? '▾ hide transactions' : '▸ edit individual transactions'}
+            </button>
+          </td>
           <td>${m.count}</td>
           <td>$${avg}</td>
           <td><span class="confidence ${confClass(m.minConfidence)}">${m.minConfidence}%</span></td>
-          <td><select class="cat-select ${isChanged ? 'changed' : ''}" data-original="${m.category}">${opts}</select></td>
-          <td><button class="save ${isChanged ? 'visible' : ''}" data-merchant="${m.merchant.replace(/"/g, '&quot;')}">Save</button></td>
-        </tr>`
-      }).join('')
+          <td><select class="cat-select ${isChanged ? 'changed' : ''}" data-original="${m.category}">${categoryOpts(currentCat)}</select></td>
+          <td><button class="save ${isChanged ? 'visible' : ''}" data-merchant="${merchantKey(m.merchant)}">Save all</button></td>
+        </tr>`)
 
+        if (isExpanded) {
+          const txs = m._transactions
+          if (!txs) {
+            rows.push(`<tr class="tx-row"><td colspan="6" style="text-align:center;color:#aaa">Loading…</td></tr>`)
+          } else if (!txs.length) {
+            rows.push(`<tr class="tx-row"><td colspan="6" style="text-align:center;color:#aaa">No transactions found.</td></tr>`)
+          } else {
+            for (const tx of txs) {
+              rows.push(`<tr class="tx-row" data-tx-id="${tx.id}">
+                <td colspan="3">
+                  <span class="sample-date">${tx.date}</span>
+                  <strong style="margin:0 8px">$${tx.amount.toFixed(2)}</strong>
+                  <span class="tx-rawname">${tx.rawName}</span>
+                </td>
+                <td><span class="confidence ${confClass(tx.confidence)}">${tx.confidence}%</span></td>
+                <td><select class="tx-cat-select" data-original="${tx.category}">${categoryOpts(tx.category)}</select></td>
+                <td>
+                  <div class="tx-actions">
+                    <button class="tx-save" data-tx-id="${tx.id}" style="display:none">Save</button>
+                  </div>
+                </td>
+              </tr>`)
+            }
+          }
+        }
+      }
+
+      tbody.innerHTML = rows.join('')
       updatePending()
     }
 
@@ -135,67 +190,129 @@
       saveAllBtn.disabled = n === 0
     }
 
+    // Merchant-level category change
     tbody.addEventListener('change', e => {
-      if (!e.target.classList.contains('cat-select')) return
-      const row = e.target.closest('tr')
-      const merchant = row.dataset.merchant
-      const original = e.target.dataset.original
-      if (e.target.value === original) {
-        changes.delete(merchant)
-        e.target.classList.remove('changed')
-        row.querySelector('.save').classList.remove('visible')
-      } else {
-        changes.set(merchant, e.target.value)
-        e.target.classList.add('changed')
-        row.querySelector('.save').classList.add('visible')
+      if (e.target.classList.contains('cat-select')) {
+        const row = e.target.closest('tr')
+        const merchant = row.dataset.merchant
+        const original = e.target.dataset.original
+        if (e.target.value === original) {
+          changes.delete(merchant)
+          e.target.classList.remove('changed')
+          row.querySelector('.save').classList.remove('visible')
+        } else {
+          changes.set(merchant, e.target.value)
+          e.target.classList.add('changed')
+          row.querySelector('.save').classList.add('visible')
+        }
+        updatePending()
       }
-      updatePending()
+
+      // Per-transaction category change
+      if (e.target.classList.contains('tx-cat-select')) {
+        const row = e.target.closest('tr')
+        const saveBtn = row.querySelector('.tx-save')
+        saveBtn.style.display = e.target.value !== e.target.dataset.original ? 'inline-block' : 'none'
+      }
     })
 
-    async function saveOne(merchant, category) {
-      const res = await fetch(`/review/correct?token=${urlToken}`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ merchant_name: merchant, category }),
-      })
-      if (!res.ok) throw new Error(await res.text())
-      return res.json()
-    }
-
+    // Expand/collapse
     tbody.addEventListener('click', async e => {
-      if (!e.target.classList.contains('save')) return
-      const merchant = e.target.dataset.merchant
-      const category = changes.get(merchant)
-      if (!category) return
-      e.target.disabled = true
-      try {
-        await saveOne(merchant, category)
-        changes.delete(merchant)
+      if (e.target.classList.contains('expand-btn')) {
+        const merchant = e.target.dataset.merchant
+        if (expandedMerchants.has(merchant)) {
+          expandedMerchants.delete(merchant)
+          render()
+          return
+        }
+        expandedMerchants.add(merchant)
         const m = allMerchants.find(x => x.merchant === merchant)
-        if (m) { m.category = category; m.minConfidence = 100 }
-        e.target.classList.add('saved')
-        setTimeout(() => render(), 600)
-      } catch {
-        statusEl.textContent = `❌ Failed to save ${merchant}`
-        e.target.disabled = false
+        render()
+        // Fetch transactions
+        const res = await fetch(`/review/merchant/${encodeURIComponent(merchant)}?token=${urlToken}`)
+        const data = await res.json()
+        if (m) m._transactions = data.transactions
+        render()
+        return
       }
-      updatePending()
+
+      // Merchant-level save
+      if (e.target.classList.contains('save')) {
+        const merchant = e.target.dataset.merchant
+        const category = changes.get(merchant)
+        if (!category) return
+        e.target.disabled = true
+        try {
+          await fetch(`/review/correct?token=${urlToken}`, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ merchant_name: merchant, category }),
+          }).then(r => { if (!r.ok) throw new Error() })
+          changes.delete(merchant)
+          const m = allMerchants.find(x => x.merchant === merchant)
+          if (m) {
+            m.category = category
+            m.minConfidence = 100
+            if (m._transactions) m._transactions.forEach(tx => { tx.category = category; tx.confidence = 100 })
+          }
+          e.target.classList.add('saved')
+          setTimeout(() => render(), 500)
+        } catch {
+          statusEl.textContent = `❌ Failed to save ${merchant}`
+          e.target.disabled = false
+        }
+        updatePending()
+        return
+      }
+
+      // Per-transaction save
+      if (e.target.classList.contains('tx-save')) {
+        const txId = e.target.dataset.txId
+        const row = e.target.closest('tr')
+        const select = row.querySelector('.tx-cat-select')
+        const category = select.value
+        e.target.disabled = true
+        try {
+          await fetch(`/review/correct-transaction?token=${urlToken}`, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ plaid_transaction_id: txId, category }),
+          }).then(r => { if (!r.ok) throw new Error() })
+          select.dataset.original = category
+          e.target.style.display = 'none'
+          // Update local cache
+          for (const m of allMerchants) {
+            const tx = (m._transactions ?? []).find(t => t.id === txId)
+            if (tx) { tx.category = category; tx.confidence = 100 }
+          }
+          const actions = e.target.closest('.tx-actions')
+          const saved = document.createElement('span')
+          saved.className = 'tx-saved-label'
+          saved.textContent = '✓ saved'
+          actions.appendChild(saved)
+          setTimeout(() => saved.remove(), 2000)
+        } catch {
+          statusEl.textContent = `❌ Failed to save transaction`
+          e.target.disabled = false
+        }
+      }
     })
 
     saveAllBtn.addEventListener('click', async () => {
       saveAllBtn.disabled = true
-      const entries = [...changes.entries()]
       let saved = 0, failed = 0
-      for (const [merchant, category] of entries) {
+      for (const [merchant, category] of [...changes.entries()]) {
         try {
-          await saveOne(merchant, category)
+          await fetch(`/review/correct?token=${urlToken}`, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ merchant_name: merchant, category }),
+          }).then(r => { if (!r.ok) throw new Error() })
           changes.delete(merchant)
           const m = allMerchants.find(x => x.merchant === merchant)
           if (m) { m.category = category; m.minConfidence = 100 }
           saved++
-        } catch {
-          failed++
-        }
+        } catch { failed++ }
       }
       statusEl.textContent = `✅ Saved ${saved}${failed ? ` — ❌ ${failed} failed` : ''}`
       render()

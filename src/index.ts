@@ -6,7 +6,7 @@ import { dirname, join } from 'path'
 import { fileURLToPath } from 'url'
 import { webhookHandler } from './plaid/webhook.js'
 import { linkHandler, linkTokenHandler, linkedAccountsHandler, linkExchangeHandler, oauthReturnHandler, repairWebhooksHandler, syncAllHandler, setupGetHandler, setupPostHandler } from './plaid/link.js'
-import { reviewPageHandler, reviewTransactionsHandler, reviewCorrectHandler } from './plaid/review.js'
+import { reviewPageHandler, reviewTransactionsHandler, reviewCorrectHandler, merchantTransactionsHandler, correctTransactionHandler } from './plaid/review.js'
 import { rulesPageHandler, listRulesHandler, createRuleHandler, deleteRuleHandler } from './plaid/rules.js'
 import { startCronJobs } from './reports/cron.js'
 
@@ -48,6 +48,8 @@ app.post('/setup', setupPostHandler)
 app.get('/review', reviewPageHandler)
 app.get('/review/transactions', reviewTransactionsHandler)
 app.post('/review/correct', reviewCorrectHandler)
+app.get('/review/merchant/:merchant', merchantTransactionsHandler)
+app.post('/review/correct-transaction', correctTransactionHandler)
 app.get('/rules', rulesPageHandler)
 app.get('/rules/list', listRulesHandler)
 app.post('/rules/create', createRuleHandler)
