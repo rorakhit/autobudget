@@ -64,17 +64,42 @@ export async function webhookHandler(req: FastifyRequest, reply: FastifyReply) {
         const stats = await syncTransactions(itemId)
         req.log.info(stats, 'Transaction sync complete')
 
+        if (stats.added + stats.modified === 0) return
+
+        // Fetch recent transactions across all accounts belonging to this item
+        const { data: itemAccounts } = await db
+          .from('accounts')
+          .select('id')
+          .eq('plaid_item_id', itemId)
+
+        const accountIds = (itemAccounts ?? []).map(a => a.id)
+        if (!accountIds.length) return
+
         const { data: recentTx } = await db
           .from('transactions')
           .select('*')
-          .eq('account_id', itemId)
+          .in('account_id', accountIds)
           .order('created_at', { ascending: false })
           .limit(stats.added + stats.modified)
 
         for (const tx of recentTx ?? []) {
           await checkAlertsForTransaction(tx)
-          if (tx.is_income) {
-            await handlePaycheckDetected(tx)
+        }
+
+        // Fire paycheck report at most once per 5 days, only for large deposits (>= $500)
+        // to avoid triggering on inter-account transfers
+        const largeDeposit = (recentTx ?? []).find(tx => tx.is_income && Number(tx.amount) >= 500)
+        if (largeDeposit) {
+          const fiveDaysAgo = new Date(Date.now() - 5 * 24 * 60 * 60 * 1000).toISOString()
+          const { data: recentReport } = await db
+            .from('savings_events')
+            .select('id')
+            .gte('created_at', fiveDaysAgo)
+            .limit(1)
+            .single()
+
+          if (!recentReport) {
+            await handlePaycheckDetected(largeDeposit)
           }
         }
       }
