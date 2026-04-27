@@ -76,6 +76,19 @@ export async function repairWebhooksHandler(req: FastifyRequest, reply: FastifyR
   await reply.send({ updated: results })
 }
 
+export async function refreshNotionHandler(req: FastifyRequest, reply: FastifyReply) {
+  if (!checkSetupToken(req, reply)) return
+  await reply.send({ started: true })
+  setImmediate(async () => {
+    const { writeFlaggedTransactions, writeRecentTransactions } = await import('../reports/notion.js')
+    await Promise.all([
+      writeFlaggedTransactions().catch(console.error),
+      writeRecentTransactions().catch(console.error),
+    ])
+    console.log('Notion pages refreshed')
+  })
+}
+
 export async function syncAllHandler(req: FastifyRequest, reply: FastifyReply) {
   if (!checkSetupToken(req, reply)) return
 

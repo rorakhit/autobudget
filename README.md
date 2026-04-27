@@ -163,6 +163,7 @@ All require `?token=<SETUP_SECRET>`.
 |----------|---------|
 | `POST /link/repair-webhooks` | Register webhook URL on all Plaid items |
 | `POST /link/sync-all` | Manually trigger a full transaction sync for all items |
+| `POST /link/refresh-notion` | Rewrite Flagged + Recent Transactions Notion pages from DB |
 | `GET /link/accounts` | List all linked institutions and accounts (JSON) |
 | `GET /health` | Health check — returns `{ status: "ok" }` |
 

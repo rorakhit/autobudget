@@ -132,12 +132,10 @@ export async function syncTransactions(plaidItemId: string): Promise<{ added: nu
 
   await db.from('plaid_items').update({ cursor }).eq('id', plaidItemId)
 
-  if (added + modified > 0) {
-    await Promise.all([
-      writeFlaggedTransactions().catch(console.error),
-      writeRecentTransactions().catch(console.error),
-    ])
-  }
+  await Promise.all([
+    writeFlaggedTransactions().catch(console.error),
+    writeRecentTransactions().catch(console.error),
+  ])
 
   return { added, modified, removed }
 }
