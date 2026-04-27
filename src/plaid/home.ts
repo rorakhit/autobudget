@@ -52,7 +52,7 @@ export async function homeStatsHandler(req: FastifyRequest, reply: FastifyReply)
   const acctList = accounts ?? []
   const depositoryIds = new Set(acctList.filter(a => a.type === 'depository').map(a => a.id))
   const creditIds = new Set(acctList.filter(a => a.type === 'credit').map(a => a.id))
-  const loanIds = new Set(acctList.filter(a => a.type === 'loan').map(a => a.id))
+  const loanIds = new Set(acctList.filter(a => a.type === 'loan' && a.subtype !== 'mortgage').map(a => a.id))
 
   const sum = (ids: Set<string>, map: Map<string, number>) =>
     [...ids].reduce((t, id) => t + (map.get(id) ?? 0), 0)
