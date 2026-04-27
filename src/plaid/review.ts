@@ -27,7 +27,7 @@ export async function reviewTransactionsHandler(req: FastifyRequest, reply: Fast
 
   const { data } = await db
     .from('transactions')
-    .select('merchant_name, category, category_confidence, amount, date, is_income')
+    .select('merchant_name, category, category_confidence, amount, date, is_income, raw_plaid_data')
     .eq('is_income', false)
     .order('date', { ascending: false })
 
@@ -40,11 +40,12 @@ export async function reviewTransactionsHandler(req: FastifyRequest, reply: Fast
     minConfidence: number
     count: number
     totalAmount: number
-    sample: Array<{ amount: number; date: string }>
+    sample: Array<{ amount: number; date: string; rawName: string }>
   }>()
 
   for (const tx of data) {
     const name = tx.merchant_name ?? 'Unknown'
+    const rawName = (tx.raw_plaid_data as any)?.name ?? name
     const existing = merchantMap.get(name)
     if (!existing) {
       merchantMap.set(name, {
@@ -53,7 +54,7 @@ export async function reviewTransactionsHandler(req: FastifyRequest, reply: Fast
         minConfidence: tx.category_confidence ?? 0,
         count: 1,
         totalAmount: Number(tx.amount),
-        sample: [{ amount: Number(tx.amount), date: tx.date }],
+        sample: [{ amount: Number(tx.amount), date: tx.date, rawName }],
       })
     } else {
       existing.count++
@@ -62,8 +63,8 @@ export async function reviewTransactionsHandler(req: FastifyRequest, reply: Fast
         existing.minConfidence = tx.category_confidence ?? 0
         existing.category = tx.category ?? 'Other'
       }
-      if (existing.sample.length < 3) {
-        existing.sample.push({ amount: Number(tx.amount), date: tx.date })
+      if (existing.sample.length < 3 && !existing.sample.some(s => s.rawName === rawName)) {
+        existing.sample.push({ amount: Number(tx.amount), date: tx.date, rawName })
       }
     }
   }

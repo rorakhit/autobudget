@@ -8,9 +8,9 @@
     body { font-family: system-ui, sans-serif; max-width: 860px; margin: 40px auto; padding: 0 20px; color: #111; }
     h1 { font-size: 1.4rem; margin-bottom: 4px; }
     .subtitle { color: #666; font-size: 0.9rem; margin-bottom: 24px; }
-    .filters { display: flex; gap: 12px; margin-bottom: 20px; align-items: center; }
-    .filters input { padding: 7px 12px; border: 1px solid #ccc; border-radius: 6px; font-size: 0.9rem; width: 240px; }
-    .filters label { font-size: 0.9rem; color: #444; display: flex; align-items: center; gap: 6px; }
+    .filters { display: flex; gap: 16px; margin-bottom: 20px; align-items: center; }
+    .filters input[type="text"] { padding: 7px 12px; border: 1px solid #ccc; border-radius: 6px; font-size: 0.9rem; width: 240px; }
+    .filters label { font-size: 0.9rem; color: #444; display: flex; align-items: center; gap: 6px; cursor: pointer; }
     table { width: 100%; border-collapse: collapse; font-size: 0.9rem; }
     th { text-align: left; padding: 8px 12px; border-bottom: 2px solid #eee; color: #666; font-weight: 600; font-size: 0.8rem; text-transform: uppercase; letter-spacing: 0.04em; }
     td { padding: 8px 12px; border-bottom: 1px solid #f0f0f0; vertical-align: middle; }
@@ -19,7 +19,11 @@
     .conf-high { background: #d1fae5; color: #065f46; }
     .conf-mid  { background: #fef3c7; color: #92400e; }
     .conf-low  { background: #fee2e2; color: #991b1b; }
-    .sample { color: #888; font-size: 0.8rem; }
+    .sample { color: #888; font-size: 0.8rem; margin-top: 3px; }
+    .sample-row { display: flex; gap: 8px; }
+    .sample-date { color: #aaa; min-width: 80px; }
+    .sample-amount { color: #555; min-width: 60px; }
+    .sample-name { color: #888; font-style: italic; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; max-width: 220px; }
     select { padding: 5px 8px; border: 1px solid #ccc; border-radius: 5px; font-size: 0.85rem; background: white; }
     select.changed { border-color: #6366f1; background: #eef2ff; }
     button.save { padding: 5px 14px; background: #6366f1; color: white; border: none; border-radius: 5px; font-size: 0.85rem; cursor: pointer; display: none; }
@@ -101,13 +105,19 @@
       tbody.innerHTML = filtered.map(m => {
         const currentCat = changes.get(m.merchant) ?? m.category
         const avg = (m.totalAmount / m.count).toFixed(2)
-        const sampleDates = m.sample.map(s => s.date).join(', ')
+        const sampleHtml = m.sample.map(s =>
+          `<div class="sample-row">
+            <span class="sample-date">${s.date}</span>
+            <span class="sample-amount">$${Number(s.amount).toFixed(2)}</span>
+            <span class="sample-name" title="${s.rawName}">${s.rawName}</span>
+          </div>`
+        ).join('')
         const isChanged = changes.has(m.merchant)
         const opts = categories.map(c =>
           `<option value="${c}" ${c === currentCat ? 'selected' : ''}>${c}</option>`
         ).join('')
         return `<tr data-merchant="${m.merchant.replace(/"/g, '&quot;')}">
-          <td><strong>${m.merchant}</strong><br><span class="sample">${sampleDates}</span></td>
+          <td><strong>${m.merchant}</strong><div class="sample">${sampleHtml}</div></td>
           <td>${m.count}</td>
           <td>$${avg}</td>
           <td><span class="confidence ${confClass(m.minConfidence)}">${m.minConfidence}%</span></td>
