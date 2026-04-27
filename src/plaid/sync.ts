@@ -144,7 +144,7 @@ export async function syncTransactions(plaidItemId: string): Promise<{ added: nu
 
 async function snapshotBalances(accessToken: string): Promise<void> {
   try {
-    const response = await plaidClient.accountsBalanceGet({ access_token: accessToken })
+    const response = await plaidClient.accountsGet({ access_token: accessToken })
     const snapshots = []
 
     for (const plaidAcct of response.data.accounts) {
