@@ -57,9 +57,7 @@ export function parseCategorizationResponse(raw: string): CategorizationResult {
       is_recurring: boolean
       reasoning: string
     }
-    const category: Category = (CATEGORIES as readonly string[]).includes(parsed.category)
-      ? (parsed.category as Category)
-      : (parsed.category as Category) // custom categories pass through as-is
+    const category = parsed.category as Category
     return {
       category,
       confidence: Math.min(100, Math.max(0, Math.round(parsed.confidence))),
