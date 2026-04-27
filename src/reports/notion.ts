@@ -333,11 +333,10 @@ export async function writeRecentTransactions(): Promise<void> {
   const firstBatch = dataRows.slice(0, 99)
   const createResp = await notion.blocks.children.append({
     block_id: pageId,
-    children: [{ type: 'table', table: { table_width: 7, has_column_header: true, has_row_header: false }, children: [headerRow, ...firstBatch] }] as any,
+    children: [{ type: 'table', table: { table_width: 7, has_column_header: true, has_row_header: false, children: [headerRow, ...firstBatch] } }] as any,
   })
   const tableId = (createResp.results[0] as any).id
 
-  // Append any remaining rows directly to the table block
   for (let i = 99; i < dataRows.length; i += 100) {
     await notion.blocks.children.append({ block_id: tableId, children: dataRows.slice(i, i + 100) as any })
   }
@@ -378,7 +377,7 @@ export async function writeFlaggedTransactions(): Promise<void> {
   const firstBatch = dataRows.slice(0, 99)
   const createResp = await notion.blocks.children.append({
     block_id: flaggedId,
-    children: [{ type: 'table', table: { table_width: 5, has_column_header: true, has_row_header: false }, children: [headerRow, ...firstBatch] }] as any,
+    children: [{ type: 'table', table: { table_width: 5, has_column_header: true, has_row_header: false, children: [headerRow, ...firstBatch] } }] as any,
   })
   const tableId = (createResp.results[0] as any).id
 
