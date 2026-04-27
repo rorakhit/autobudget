@@ -152,5 +152,16 @@ export async function appleCardImportHandler(req: FastifyRequest, reply: Fastify
     }
   }
 
+  // Recompute Apple Card balance from all transactions and snapshot it
+  const { data: txns } = await db
+    .from('transactions')
+    .select('amount, is_income')
+    .eq('account_id', accountId)
+
+  if (txns && txns.length > 0) {
+    const balance = txns.reduce((sum, t) => sum + (t.is_income ? -Number(t.amount) : Number(t.amount)), 0)
+    await db.from('balance_snapshots').insert({ account_id: accountId, balance: Math.max(0, balance) })
+  }
+
   await reply.send({ imported, skipped, errors })
 }
