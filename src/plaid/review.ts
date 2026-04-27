@@ -1,3 +1,4 @@
+import { checkAuth, checkAuthPage } from '../auth.js'
 import type { FastifyRequest, FastifyReply } from 'fastify'
 import { db } from '../db/client.js'
 import { getAllCategories } from '../db/categories.js'
@@ -7,23 +8,14 @@ import { dirname, join } from 'path'
 
 const __dirname = dirname(fileURLToPath(import.meta.url))
 
-function checkSetupToken(req: FastifyRequest, reply: FastifyReply): boolean {
-  const token = (req.query as Record<string, string>)['token']
-  if (token !== process.env.SETUP_SECRET) {
-    reply.code(403).send({ error: 'Forbidden' })
-    return false
-  }
-  return true
-}
-
 export async function reviewPageHandler(req: FastifyRequest, reply: FastifyReply) {
-  if (!checkSetupToken(req, reply)) return
+  if (!checkAuthPage(req, reply)) return
   const html = readFileSync(join(__dirname, '../../public/review.html'), 'utf8')
   await reply.type('text/html').send(html)
 }
 
 export async function reviewTransactionsHandler(req: FastifyRequest, reply: FastifyReply) {
-  if (!checkSetupToken(req, reply)) return
+  if (!checkAuth(req, reply)) return
 
   const { data } = await db
     .from('transactions')
@@ -76,7 +68,7 @@ export async function reviewTransactionsHandler(req: FastifyRequest, reply: Fast
 }
 
 export async function reviewCorrectHandler(req: FastifyRequest, reply: FastifyReply) {
-  if (!checkSetupToken(req, reply)) return
+  if (!checkAuth(req, reply)) return
 
   const { merchant_name, category } =
     ((req.body as any)._parsed ?? req.body) as { merchant_name: string; category: string }
@@ -100,7 +92,7 @@ export async function reviewCorrectHandler(req: FastifyRequest, reply: FastifyRe
 }
 
 export async function merchantTransactionsHandler(req: FastifyRequest, reply: FastifyReply) {
-  if (!checkSetupToken(req, reply)) return
+  if (!checkAuth(req, reply)) return
 
   const { merchant } = req.params as { merchant: string }
 
@@ -125,7 +117,7 @@ export async function merchantTransactionsHandler(req: FastifyRequest, reply: Fa
 }
 
 export async function correctTransactionHandler(req: FastifyRequest, reply: FastifyReply) {
-  if (!checkSetupToken(req, reply)) return
+  if (!checkAuth(req, reply)) return
 
   const { plaid_transaction_id, category } =
     ((req.body as any)._parsed ?? req.body) as { plaid_transaction_id: string; category: string }
@@ -147,7 +139,7 @@ export async function correctTransactionHandler(req: FastifyRequest, reply: Fast
 }
 
 export async function confirmTransactionHandler(req: FastifyRequest, reply: FastifyReply) {
-  if (!checkSetupToken(req, reply)) return
+  if (!checkAuth(req, reply)) return
 
   const { plaid_transaction_id } =
     ((req.body as any)._parsed ?? req.body) as { plaid_transaction_id: string }
@@ -164,7 +156,7 @@ export async function confirmTransactionHandler(req: FastifyRequest, reply: Fast
 }
 
 export async function confirmMerchantHandler(req: FastifyRequest, reply: FastifyReply) {
-  if (!checkSetupToken(req, reply)) return
+  if (!checkAuth(req, reply)) return
 
   const { merchant_name } =
     ((req.body as any)._parsed ?? req.body) as { merchant_name: string }

@@ -113,7 +113,6 @@
   <div class="rules-list" id="rules-list"><p class="empty">Loading…</p></div>
 
   <script>
-    const urlToken = new URLSearchParams(location.search).get('token')
     const formStatus = document.getElementById('form-status')
     const rulesList = document.getElementById('rules-list')
     const catSelect = document.getElementById('cat-select')
@@ -149,7 +148,7 @@
     }
 
     function loadRules() {
-      fetch(`/rules/list?token=${urlToken}`)
+      fetch(`/rules/list`)
         .then(r => r.json())
         .then(data => {
           categories = data.categories
@@ -172,7 +171,7 @@
       }
       formStatus.textContent = 'Saving…'
       try {
-        const res = await fetch(`/rules/create?token=${urlToken}`, {
+        const res = await fetch(`/rules/create`, {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify(body),
@@ -191,7 +190,7 @@
       if (!e.target.classList.contains('delete-btn')) return
       const id = e.target.dataset.id
       if (!confirm('Delete this rule?')) return
-      const res = await fetch(`/rules/${id}?token=${urlToken}`, { method: 'DELETE' })
+      const res = await fetch(`/rules/${id}`, { method: 'DELETE' })
       if (res.ok) loadRules()
     })
 

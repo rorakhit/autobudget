@@ -1,3 +1,4 @@
+import { checkAuth, checkAuthPage } from '../auth.js'
 import type { FastifyRequest, FastifyReply } from 'fastify'
 import { db } from '../db/client.js'
 import { CATEGORIES } from '../types.js'
@@ -8,23 +9,14 @@ import { dirname, join } from 'path'
 
 const __dirname = dirname(fileURLToPath(import.meta.url))
 
-function checkSetupToken(req: FastifyRequest, reply: FastifyReply): boolean {
-  const token = (req.query as Record<string, string>)['token']
-  if (token !== process.env.SETUP_SECRET) {
-    reply.code(403).send({ error: 'Forbidden' })
-    return false
-  }
-  return true
-}
-
 export async function settingsPageHandler(req: FastifyRequest, reply: FastifyReply) {
-  if (!checkSetupToken(req, reply)) return
+  if (!checkAuthPage(req, reply)) return
   const html = readFileSync(join(__dirname, '../../public/settings.html'), 'utf8')
   await reply.type('text/html').send(html)
 }
 
 export async function settingsDataHandler(req: FastifyRequest, reply: FastifyReply) {
-  if (!checkSetupToken(req, reply)) return
+  if (!checkAuth(req, reply)) return
 
   const [{ data: accounts }, allCategories, { data: custom }, { data: creditAccounts }, { data: loanAccounts }] = await Promise.all([
     db.from('accounts')
@@ -50,7 +42,7 @@ export async function settingsDataHandler(req: FastifyRequest, reply: FastifyRep
 }
 
 export async function renameAccountHandler(req: FastifyRequest, reply: FastifyReply) {
-  if (!checkSetupToken(req, reply)) return
+  if (!checkAuth(req, reply)) return
 
   const { account_id, display_name } =
     ((req.body as any)._parsed ?? req.body) as { account_id: string; display_name: string }
@@ -69,7 +61,7 @@ export async function renameAccountHandler(req: FastifyRequest, reply: FastifyRe
 }
 
 export async function addCategoryHandler(req: FastifyRequest, reply: FastifyReply) {
-  if (!checkSetupToken(req, reply)) return
+  if (!checkAuth(req, reply)) return
 
   const { name } = ((req.body as any)._parsed ?? req.body) as { name: string }
 
@@ -86,7 +78,7 @@ export async function addCategoryHandler(req: FastifyRequest, reply: FastifyRepl
 }
 
 export async function deleteCategoryHandler(req: FastifyRequest, reply: FastifyReply) {
-  if (!checkSetupToken(req, reply)) return
+  if (!checkAuth(req, reply)) return
 
   const { name } = req.params as { name: string }
 
@@ -100,7 +92,7 @@ export async function deleteCategoryHandler(req: FastifyRequest, reply: FastifyR
 }
 
 export async function updateLoanHandler(req: FastifyRequest, reply: FastifyReply) {
-  if (!checkSetupToken(req, reply)) return
+  if (!checkAuth(req, reply)) return
 
   const { account_id, apr, original_balance } =
     ((req.body as any)._parsed ?? req.body) as { account_id: string; apr?: number; original_balance?: number }
@@ -121,7 +113,7 @@ export async function updateLoanHandler(req: FastifyRequest, reply: FastifyReply
 }
 
 export async function updateAprHandler(req: FastifyRequest, reply: FastifyReply) {
-  if (!checkSetupToken(req, reply)) return
+  if (!checkAuth(req, reply)) return
 
   const { account_id, apr, credit_limit } =
     ((req.body as any)._parsed ?? req.body) as { account_id: string; apr: number; credit_limit: number }

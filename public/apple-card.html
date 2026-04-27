@@ -106,7 +106,6 @@
   </section>
 
   <script>
-    const urlToken = new URLSearchParams(location.search).get('token')
     const dropZone = document.getElementById('drop-zone')
     const fileInput = document.getElementById('file-input')
     const importBtn = document.getElementById('import-btn')
@@ -115,7 +114,7 @@
     let csvText = null
 
     // Load status
-    fetch(`/apple-card/status?token=${urlToken}`)
+    fetch(`/apple-card/status`)
       .then(r => r.json())
       .then(d => {
         const el = document.getElementById('status-line')
@@ -162,7 +161,7 @@
       document.getElementById('error-list').textContent = ''
 
       try {
-        const res = await fetch(`/apple-card/import?token=${urlToken}`, {
+        const res = await fetch(`/apple-card/import`, {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({ csv: csvText }),
@@ -180,7 +179,7 @@
         }
 
         // Refresh status count
-        fetch(`/apple-card/status?token=${urlToken}`)
+        fetch(`/apple-card/status`)
           .then(r => r.json())
           .then(d => {
             if (d.exists) {

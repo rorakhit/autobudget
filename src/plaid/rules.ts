@@ -1,3 +1,4 @@
+import { checkAuth, checkAuthPage } from '../auth.js'
 import type { FastifyRequest, FastifyReply } from 'fastify'
 import { db } from '../db/client.js'
 import { getAllCategories } from '../db/categories.js'
@@ -7,23 +8,14 @@ import { dirname, join } from 'path'
 
 const __dirname = dirname(fileURLToPath(import.meta.url))
 
-function checkSetupToken(req: FastifyRequest, reply: FastifyReply): boolean {
-  const token = (req.query as Record<string, string>)['token']
-  if (token !== process.env.SETUP_SECRET) {
-    reply.code(403).send({ error: 'Forbidden' })
-    return false
-  }
-  return true
-}
-
 export async function rulesPageHandler(req: FastifyRequest, reply: FastifyReply) {
-  if (!checkSetupToken(req, reply)) return
+  if (!checkAuthPage(req, reply)) return
   const html = readFileSync(join(__dirname, '../../public/rules.html'), 'utf8')
   await reply.type('text/html').send(html)
 }
 
 export async function listRulesHandler(req: FastifyRequest, reply: FastifyReply) {
-  if (!checkSetupToken(req, reply)) return
+  if (!checkAuth(req, reply)) return
   const { data } = await db
     .from('categorization_rules')
     .select('*')
@@ -33,7 +25,7 @@ export async function listRulesHandler(req: FastifyRequest, reply: FastifyReply)
 }
 
 export async function createRuleHandler(req: FastifyRequest, reply: FastifyReply) {
-  if (!checkSetupToken(req, reply)) return
+  if (!checkAuth(req, reply)) return
 
   const body = ((req.body as any)._parsed ?? req.body) as {
     label: string
@@ -67,7 +59,7 @@ export async function createRuleHandler(req: FastifyRequest, reply: FastifyReply
 }
 
 export async function deleteRuleHandler(req: FastifyRequest, reply: FastifyReply) {
-  if (!checkSetupToken(req, reply)) return
+  if (!checkAuth(req, reply)) return
   const { id } = req.params as { id: string }
   const { error } = await db.from('categorization_rules').delete().eq('id', id)
   if (error) return reply.code(500).send({ error: error.message })

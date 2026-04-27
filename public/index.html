@@ -1,0 +1,172 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <link rel="icon" href="/public/icon.svg" type="image/svg+xml">
+  <title>AutoBudget</title>
+  <style>
+    * { box-sizing: border-box; }
+    body { font-family: system-ui, sans-serif; max-width: 760px; margin: 40px auto; padding: 0 20px; color: #111; }
+
+    .header { display: flex; align-items: baseline; gap: 12px; margin-bottom: 6px; }
+    h1 { font-size: 1.5rem; margin: 0; }
+    .token-pill {
+      display: inline-flex; align-items: center; gap: 6px;
+      background: #f3f4f6; border-radius: 20px; padding: 3px 10px 3px 8px;
+      font-size: 0.78rem; color: #6b7280; cursor: pointer; border: 1px solid #e5e7eb;
+    }
+    .token-pill:hover { background: #e5e7eb; }
+    .token-dot { width: 7px; height: 7px; border-radius: 50%; background: #16a34a; flex-shrink: 0; }
+    .token-dot.unset { background: #d1d5db; }
+
+    .subtitle { color: #666; font-size: 0.9rem; margin-bottom: 36px; }
+
+    /* Token gate */
+    #token-gate { margin-bottom: 32px; }
+    .token-form { display: flex; gap: 8px; align-items: center; max-width: 400px; }
+    .token-form input {
+      flex: 1; padding: 8px 12px; border: 1px solid #ddd; border-radius: 6px;
+      font-size: 0.9rem; font-family: monospace;
+    }
+    .token-form input:focus { outline: none; border-color: #6366f1; }
+    button.primary { padding: 8px 18px; background: #6366f1; color: white; border: none; border-radius: 6px; font-size: 0.9rem; cursor: pointer; white-space: nowrap; }
+    button.primary:hover { background: #4f46e5; }
+    .token-error { font-size: 0.83rem; color: #dc2626; margin-top: 6px; }
+
+    /* Nav grid */
+    #nav-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 14px; }
+    @media (max-width: 500px) { #nav-grid { grid-template-columns: 1fr; } }
+
+    .nav-card {
+      display: block; text-decoration: none; color: inherit;
+      border: 1px solid #e5e7eb; border-radius: 10px; padding: 18px 20px;
+      transition: border-color 0.15s, box-shadow 0.15s;
+    }
+    .nav-card:hover { border-color: #6366f1; box-shadow: 0 2px 8px rgba(99,102,241,0.1); }
+    .nav-card .card-icon { font-size: 1.4rem; margin-bottom: 8px; }
+    .nav-card .card-title { font-size: 0.98rem; font-weight: 600; margin-bottom: 4px; }
+    .nav-card .card-desc { font-size: 0.82rem; color: #6b7280; line-height: 1.45; }
+  </style>
+</head>
+<body>
+  <div class="header">
+    <h1>AutoBudget</h1>
+    <span class="token-pill" id="token-pill" onclick="clearToken()" title="Click to sign out">
+      <span class="token-dot unset" id="token-dot"></span>
+      <span id="token-pill-label">not authenticated</span>
+    </span>
+  </div>
+  <p class="subtitle">Personal finance automation — Plaid sync, AI insights, paycheck allocation.</p>
+
+  <div id="token-gate">
+    <div class="token-form">
+      <input type="password" id="token-input" placeholder="Enter setup secret…" autocomplete="off">
+      <button class="primary" onclick="submitToken()">Unlock</button>
+    </div>
+    <div class="token-error" id="token-error"></div>
+  </div>
+
+  <div id="nav-grid" style="display:none">
+    <a class="nav-card" id="link-card" href="#">
+      <div class="card-icon">🔗</div>
+      <div class="card-title">Link Accounts</div>
+      <div class="card-desc">Connect bank accounts, credit cards, and loans via Plaid.</div>
+    </a>
+    <a class="nav-card" id="review-card" href="#">
+      <div class="card-icon">🔍</div>
+      <div class="card-title">Review Transactions</div>
+      <div class="card-desc">Categorize flagged transactions and correct merchant names.</div>
+    </a>
+    <a class="nav-card" id="rules-card" href="#">
+      <div class="card-icon">⚙️</div>
+      <div class="card-title">Categorization Rules</div>
+      <div class="card-desc">Manage auto-categorization rules for recurring merchants.</div>
+    </a>
+    <a class="nav-card" id="settings-card" href="#">
+      <div class="card-icon">💳</div>
+      <div class="card-title">Settings</div>
+      <div class="card-desc">Account names, APRs, credit limits, and custom categories.</div>
+    </a>
+    <a class="nav-card" id="paycheck-card" href="#">
+      <div class="card-icon">💸</div>
+      <div class="card-title">Paycheck Setup</div>
+      <div class="card-desc">Set trigger account and classify recurring charges as pre-allocated or discretionary.</div>
+    </a>
+    <a class="nav-card" id="apple-card-card" href="#">
+      <div class="card-icon">🍎</div>
+      <div class="card-title">Apple Card Import</div>
+      <div class="card-desc">Import Apple Card transactions via CSV export from Wallet.</div>
+    </a>
+  </div>
+
+  <script>
+    const PAGES = {
+      'link-card':        '/link',
+      'review-card':      '/review',
+      'rules-card':       '/rules',
+      'settings-card':    '/settings',
+      'paycheck-card':    '/paycheck',
+      'apple-card-card':  '/apple-card',
+    }
+
+    function getToken() {
+      return sessionStorage.getItem('ab_authed') === '1'
+    }
+
+    function setTokenUI(authed) {
+      const dot = document.getElementById('token-dot')
+      const label = document.getElementById('token-pill-label')
+      if (authed) {
+        dot.classList.remove('unset')
+        label.textContent = 'authenticated'
+        document.getElementById('token-gate').style.display = 'none'
+        document.getElementById('nav-grid').style.display = 'grid'
+        Object.entries(PAGES).forEach(([id, path]) => {
+          document.getElementById(id).href = path
+        })
+      } else {
+        dot.classList.add('unset')
+        label.textContent = 'not authenticated'
+        document.getElementById('token-gate').style.display = 'block'
+        document.getElementById('nav-grid').style.display = 'none'
+      }
+    }
+
+    async function submitToken() {
+      const input = document.getElementById('token-input')
+      const secret = input.value.trim()
+      if (!secret) return
+      const res = await fetch('/auth', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ secret }),
+      })
+      if (res.status === 403) {
+        document.getElementById('token-error').textContent = 'Incorrect secret.'
+        return
+      }
+      document.getElementById('token-error').textContent = ''
+      sessionStorage.setItem('ab_authed', '1')
+      setTokenUI(true)
+    }
+
+    async function clearToken() {
+      sessionStorage.removeItem('ab_authed')
+      await fetch('/auth/logout')
+    }
+
+    document.getElementById('token-input').addEventListener('keydown', e => {
+      if (e.key === 'Enter') submitToken()
+    })
+
+    // Init — verify cookie is still valid on load
+    async function init() {
+      if (!getToken()) { setTokenUI(false); return }
+      const res = await fetch('/paycheck/data')
+      if (res.status === 403) { sessionStorage.removeItem('ab_authed'); setTokenUI(false) }
+      else setTokenUI(true)
+    }
+    init()
+  </script>
+</body>
+</html>

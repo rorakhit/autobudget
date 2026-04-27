@@ -1,3 +1,4 @@
+import { checkAuth, checkAuthPage } from '../auth.js'
 import type { FastifyRequest, FastifyReply } from 'fastify'
 import { plaidClient } from './client.js'
 import { db } from '../db/client.js'
@@ -9,15 +10,6 @@ import { fileURLToPath } from 'url'
 import { dirname, join } from 'path'
 
 const __dirname = dirname(fileURLToPath(import.meta.url))
-
-function checkSetupToken(req: FastifyRequest, reply: FastifyReply): boolean {
-  const token = (req.query as Record<string, string>)['token']
-  if (token !== process.env.SETUP_SECRET) {
-    reply.code(403).send({ error: 'Forbidden' })
-    return false
-  }
-  return true
-}
 
 async function createLinkToken() {
   const response = await plaidClient.linkTokenCreate({
@@ -33,7 +25,7 @@ async function createLinkToken() {
 }
 
 export async function linkHandler(req: FastifyRequest, reply: FastifyReply) {
-  if (!checkSetupToken(req, reply)) return
+  if (!checkAuthPage(req, reply)) return
   const token = await createLinkToken()
   const html = readFileSync(join(__dirname, '../../public/link.html'), 'utf8')
     .replace('__LINK_TOKEN__', token)
@@ -41,13 +33,13 @@ export async function linkHandler(req: FastifyRequest, reply: FastifyReply) {
 }
 
 export async function linkTokenHandler(req: FastifyRequest, reply: FastifyReply) {
-  if (!checkSetupToken(req, reply)) return
+  if (!checkAuth(req, reply)) return
   const link_token = await createLinkToken()
   await reply.send({ link_token })
 }
 
 export async function linkedAccountsHandler(req: FastifyRequest, reply: FastifyReply) {
-  if (!checkSetupToken(req, reply)) return
+  if (!checkAuth(req, reply)) return
   const { data: items } = await db
     .from('plaid_items')
     .select('id, institution_name, accounts(name, type, subtype, mask)')
@@ -66,7 +58,7 @@ export async function linkedAccountsHandler(req: FastifyRequest, reply: FastifyR
 }
 
 export async function repairWebhooksHandler(req: FastifyRequest, reply: FastifyReply) {
-  if (!checkSetupToken(req, reply)) return
+  if (!checkAuth(req, reply)) return
 
   const webhookUrl = process.env.PLAID_WEBHOOK_URL
   if (!webhookUrl) return reply.code(400).send({ error: 'PLAID_WEBHOOK_URL not set' })
@@ -87,7 +79,7 @@ export async function repairWebhooksHandler(req: FastifyRequest, reply: FastifyR
 }
 
 export async function refreshNotionHandler(req: FastifyRequest, reply: FastifyReply) {
-  if (!checkSetupToken(req, reply)) return
+  if (!checkAuth(req, reply)) return
   await reply.send({ started: true })
   setImmediate(async () => {
     const { writeFlaggedTransactions, writeRecentTransactions } = await import('../reports/notion.js')
@@ -100,7 +92,7 @@ export async function refreshNotionHandler(req: FastifyRequest, reply: FastifyRe
 }
 
 export async function syncAllHandler(req: FastifyRequest, reply: FastifyReply) {
-  if (!checkSetupToken(req, reply)) return
+  if (!checkAuth(req, reply)) return
 
   const { data: items } = await db.from('plaid_items').select('id, institution_name')
   if (!items?.length) return reply.send({ results: [] })
@@ -120,7 +112,7 @@ export async function syncAllHandler(req: FastifyRequest, reply: FastifyReply) {
 }
 
 export async function linkExchangeHandler(req: FastifyRequest, reply: FastifyReply) {
-  if (!checkSetupToken(req, reply)) return
+  if (!checkAuth(req, reply)) return
 
   const { public_token, institution_id, institution_name, accounts } =
     ((req.body as any)._parsed ?? req.body) as {
@@ -171,7 +163,7 @@ export async function linkExchangeHandler(req: FastifyRequest, reply: FastifyRep
 }
 
 export async function setupGetHandler(req: FastifyRequest, reply: FastifyReply) {
-  if (!checkSetupToken(req, reply)) return
+  if (!checkAuthPage(req, reply)) return
 
   const [{ data: creditAccounts }, { data: existingAprs }] = await Promise.all([
     db.from('accounts').select('id, name, mask').eq('type', 'credit'),
@@ -188,13 +180,13 @@ export async function setupGetHandler(req: FastifyRequest, reply: FastifyReply) 
 }
 
 export async function oauthReturnHandler(req: FastifyRequest, reply: FastifyReply) {
-  if (!checkSetupToken(req, reply)) return
+  if (!checkAuth(req, reply)) return
   const html = readFileSync(join(__dirname, '../../public/oauth-return.html'), 'utf8')
   await reply.type('text/html').send(html)
 }
 
 export async function setupPostHandler(req: FastifyRequest, reply: FastifyReply) {
-  if (!checkSetupToken(req, reply)) return
+  if (!checkAuthPage(req, reply)) return
 
   const body = req.body as Record<string, string>
 

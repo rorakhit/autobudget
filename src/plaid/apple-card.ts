@@ -1,3 +1,4 @@
+import { checkAuth, checkAuthPage } from '../auth.js'
 import type { FastifyRequest, FastifyReply } from 'fastify'
 import { db } from '../db/client.js'
 import { readFileSync } from 'fs'
@@ -6,15 +7,6 @@ import { dirname, join } from 'path'
 
 const __dirname = dirname(fileURLToPath(import.meta.url))
 const APPLE_CARD_PLAID_ID = 'apple-card-manual'
-
-function checkSetupToken(req: FastifyRequest, reply: FastifyReply): boolean {
-  const token = (req.query as Record<string, string>)['token']
-  if (token !== process.env.SETUP_SECRET) {
-    reply.code(403).send({ error: 'Forbidden' })
-    return false
-  }
-  return true
-}
 
 function parseCSV(raw: string): Record<string, string>[] {
   const lines = raw.trim().split(/\r?\n/)
@@ -73,13 +65,13 @@ async function ensureAppleCardAccount(): Promise<string> {
 }
 
 export async function appleCardPageHandler(req: FastifyRequest, reply: FastifyReply) {
-  if (!checkSetupToken(req, reply)) return
+  if (!checkAuthPage(req, reply)) return
   const html = readFileSync(join(__dirname, '../../public/apple-card.html'), 'utf8')
   await reply.type('text/html').send(html)
 }
 
 export async function appleCardStatusHandler(req: FastifyRequest, reply: FastifyReply) {
-  if (!checkSetupToken(req, reply)) return
+  if (!checkAuth(req, reply)) return
 
   const { data: acct } = await db
     .from('accounts')
@@ -98,7 +90,7 @@ export async function appleCardStatusHandler(req: FastifyRequest, reply: Fastify
 }
 
 export async function appleCardImportHandler(req: FastifyRequest, reply: FastifyReply) {
-  if (!checkSetupToken(req, reply)) return
+  if (!checkAuth(req, reply)) return
 
   const { csv } = ((req.body as any)._parsed ?? req.body) as { csv: string }
   if (!csv) return reply.code(400).send({ error: 'csv required' })

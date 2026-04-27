@@ -11,6 +11,7 @@ import { rulesPageHandler, listRulesHandler, createRuleHandler, deleteRuleHandle
 import { settingsPageHandler, settingsDataHandler, renameAccountHandler, addCategoryHandler, deleteCategoryHandler, updateAprHandler, updateLoanHandler } from './plaid/settings.js'
 import { paycheckPageHandler, paycheckDataHandler, setPaycheckAccountHandler, updateRecurringAllocationHandler, removeRecurringHandler } from './plaid/paycheck.js'
 import { appleCardPageHandler, appleCardStatusHandler, appleCardImportHandler } from './plaid/apple-card.js'
+import { authHandler, logoutHandler } from './auth.js'
 import { startCronJobs } from './reports/cron.js'
 
 const __dirname = dirname(fileURLToPath(import.meta.url))
@@ -37,6 +38,14 @@ await app.register(staticPlugin, {
   prefix: '/public/',
 })
 
+app.get('/', async (_req, reply) => {
+  const { readFileSync } = await import('fs')
+  const { join: pjoin } = await import('path')
+  const html = readFileSync(pjoin(__dirname, '../public/index.html'), 'utf8')
+  await reply.type('text/html').send(html)
+})
+app.post('/auth', authHandler)
+app.get('/auth/logout', logoutHandler)
 app.get('/health', async () => ({ status: 'ok', ts: new Date().toISOString() }))
 app.post('/webhook', webhookHandler)
 app.get('/link', linkHandler)

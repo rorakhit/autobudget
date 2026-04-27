@@ -89,7 +89,6 @@
   <div id="status"></div>
 
   <script>
-    const urlToken = new URLSearchParams(location.search).get('token')
     const tbody = document.getElementById('tbody')
     const searchInput = document.getElementById('search')
     const flaggedOnly = document.getElementById('flagged-only')
@@ -238,7 +237,7 @@
         const m = allMerchants.find(x => x.merchant === merchant)
         render()
         // Fetch transactions
-        const res = await fetch(`/review/merchant/${encodeURIComponent(merchant)}?token=${urlToken}`)
+        const res = await fetch(`/review/merchant/${encodeURIComponent(merchant)}`)
         const data = await res.json()
         if (m) m._transactions = data.transactions
         render()
@@ -252,7 +251,7 @@
         if (!category) return
         e.target.disabled = true
         try {
-          await fetch(`/review/correct?token=${urlToken}`, {
+          await fetch(`/review/correct`, {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify({ merchant_name: merchant, category }),
@@ -279,7 +278,7 @@
         const merchant = e.target.dataset.merchant
         e.target.disabled = true
         try {
-          await fetch(`/review/confirm-merchant?token=${urlToken}`, {
+          await fetch(`/review/confirm-merchant`, {
             method: 'POST', headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify({ merchant_name: merchant }),
           }).then(r => { if (!r.ok) throw new Error() })
@@ -298,7 +297,7 @@
         const txId = e.target.dataset.txId
         e.target.disabled = true
         try {
-          await fetch(`/review/confirm-transaction?token=${urlToken}`, {
+          await fetch(`/review/confirm-transaction`, {
             method: 'POST', headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify({ plaid_transaction_id: txId }),
           }).then(r => { if (!r.ok) throw new Error() })
@@ -321,7 +320,7 @@
         const category = select.value
         e.target.disabled = true
         try {
-          await fetch(`/review/correct-transaction?token=${urlToken}`, {
+          await fetch(`/review/correct-transaction`, {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify({ plaid_transaction_id: txId, category }),
@@ -351,7 +350,7 @@
       let saved = 0, failed = 0
       for (const [merchant, category] of [...changes.entries()]) {
         try {
-          await fetch(`/review/correct?token=${urlToken}`, {
+          await fetch(`/review/correct`, {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify({ merchant_name: merchant, category }),
@@ -369,7 +368,7 @@
     searchInput.addEventListener('input', render)
     flaggedOnly.addEventListener('change', render)
 
-    fetch(`/review/transactions?token=${urlToken}`)
+    fetch(`/review/transactions`)
       .then(r => r.json())
       .then(data => {
         allMerchants = data.merchants

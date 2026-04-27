@@ -28,13 +28,12 @@
   <div id="existing"></div>
   <script src="https://cdn.plaid.com/link/v2/stable/link-initialize.js"></script>
   <script>
-    const urlToken = new URLSearchParams(location.search).get('token')
     const status = document.getElementById('status')
     const btn = document.getElementById('launch')
     const connectedList = document.getElementById('connected')
     const existingDiv = document.getElementById('existing')
 
-    fetch(`/link/accounts?token=${urlToken}`)
+    fetch(`/link/accounts`)
       .then(r => r.json())
       .then(items => {
         if (!items.length) return
@@ -58,7 +57,7 @@
 
       let linkToken
       try {
-        const res = await fetch(`/link/token?token=${urlToken}`)
+        const res = await fetch(`/link/token`)
         if (!res.ok) throw new Error('Failed to get link token')
         linkToken = (await res.json()).link_token
       } catch {
@@ -74,7 +73,7 @@
         token: linkToken,
         onSuccess(publicToken, metadata) {
           status.textContent = `Connecting ${metadata.institution.name}…`
-          fetch(`/link/exchange?token=${urlToken}`, {
+          fetch(`/link/exchange`, {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify({

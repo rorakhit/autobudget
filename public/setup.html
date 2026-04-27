@@ -39,7 +39,6 @@
   <script>
     const accounts = __ACCOUNTS_JSON__
     const cards = document.getElementById('cards')
-    const urlToken = new URLSearchParams(location.search).get('token')
 
     if (accounts.length === 0) {
       cards.innerHTML = '<p>No credit accounts found. Connect accounts first via /link.</p>'
@@ -62,7 +61,7 @@
       e.preventDefault()
       const status = document.getElementById('status')
       const data = new URLSearchParams(new FormData(e.target))
-      const res = await fetch(`/setup?token=${urlToken}`, { method: 'POST', body: data })
+      const res = await fetch(`/setup`, { method: 'POST', body: data })
       const json = await res.json()
       status.textContent = res.ok ? '✅ Setup saved!' : `❌ ${json.error}`
     })

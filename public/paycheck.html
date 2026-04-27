@@ -87,7 +87,6 @@
   </section>
 
   <script>
-    const urlToken = new URLSearchParams(location.search).get('token')
     let accounts = []
     let recurring = []
 
@@ -150,7 +149,7 @@
         row.querySelector('.charge-remove').addEventListener('click', async () => {
           if (!confirm(`Remove "${rec.merchant_name}" from recurring charges?`)) return
           try {
-            const res = await fetch(`/paycheck/remove-recurring/${id}?token=${urlToken}`, { method: 'DELETE' })
+            const res = await fetch(`/paycheck/remove-recurring/${id}`, { method: 'DELETE' })
             if (!res.ok) throw new Error((await res.json()).error)
             recurring = recurring.filter(r => r.id !== id)
             row.remove()
@@ -166,7 +165,7 @@
           saveBtn.disabled = true
           statusEl.textContent = '…'
           try {
-            const res = await fetch(`/paycheck/update-recurring?token=${urlToken}`, {
+            const res = await fetch(`/paycheck/update-recurring`, {
               method: 'POST',
               headers: { 'Content-Type': 'application/json' },
               body: JSON.stringify({
@@ -207,7 +206,7 @@
       acctSaveBtn.disabled = true
       acctStatus.textContent = 'Saving…'
       try {
-        const res = await fetch(`/paycheck/set-account?token=${urlToken}`, {
+        const res = await fetch(`/paycheck/set-account`, {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({ account_id }),
@@ -222,7 +221,7 @@
       acctSaveBtn.disabled = false
     })
 
-    fetch(`/paycheck/data?token=${urlToken}`)
+    fetch(`/paycheck/data`)
       .then(r => r.json())
       .then(data => {
         accounts = data.accounts

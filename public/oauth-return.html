@@ -15,7 +15,6 @@
   <div id="status">Completing bank authentication…</div>
   <script src="https://cdn.plaid.com/link/v2/stable/link-initialize.js"></script>
   <script>
-    const urlToken = new URLSearchParams(location.search).get('token')
     const token = localStorage.getItem('plaid_link_token')
     const status = document.getElementById('status')
 
@@ -27,7 +26,7 @@
         receivedRedirectUri: window.location.href,
         onSuccess(publicToken, metadata) {
           status.textContent = `Connecting ${metadata.institution.name}…`
-          fetch(`/link/exchange?token=${urlToken}`, {
+          fetch(`/link/exchange`, {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify({
