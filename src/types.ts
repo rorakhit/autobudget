@@ -101,7 +101,8 @@ export interface NotionPage {
 export const CATEGORIES = [
   'Groceries', 'Dining', 'Food Delivery', 'Transport', 'Entertainment',
   'Shopping', 'Subscriptions', 'Utilities', 'Rent/Housing', 'Healthcare',
-  'Travel', 'Income', 'Savings Transfer', 'Credit Payment', 'Loan Repayment', 'Other',
+  'Travel', 'Income', 'Savings Transfer', 'Credit Payment', 'Loan Repayment',
+  'Gouda', 'Hair', 'Interest', 'Other',
 ] as const
 
 export type Category = typeof CATEGORIES[number]

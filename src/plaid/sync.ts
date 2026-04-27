@@ -13,8 +13,25 @@ async function getAccountId(plaidAccountId: string): Promise<string | null> {
   return data?.id ?? null
 }
 
+async function matchRule(rawName: string, amount: number, date: string): Promise<string | null> {
+  const { data: rules } = await db
+    .from('categorization_rules')
+    .select('*')
+    .order('priority', { ascending: false })
+
+  for (const rule of rules ?? []) {
+    if (rule.match_name_contains && !rawName.toLowerCase().includes(rule.match_name_contains.toLowerCase())) continue
+    if (rule.match_amount_min !== null && amount < rule.match_amount_min) continue
+    if (rule.match_amount_max !== null && amount > rule.match_amount_max) continue
+    if (rule.match_day_of_week !== null && new Date(date + 'T12:00:00').getDay() !== rule.match_day_of_week) continue
+    return rule.category as string
+  }
+  return null
+}
+
 async function storeTransaction(tx: Transaction, accountId: string): Promise<void> {
   const merchantName = tx.merchant_name ?? tx.name ?? 'Unknown'
+  const rawName = tx.name ?? merchantName
   const amount = Math.abs(tx.amount)
   const isIncome = tx.amount < 0  // Plaid: negative = money in
 
@@ -24,11 +41,19 @@ async function storeTransaction(tx: Transaction, accountId: string): Promise<voi
   let flagged = false
 
   if (!isIncome) {
-    const result = await categorizeTransaction(merchantName, amount, tx.date)
-    category = result.category
-    confidence = result.confidence
-    isRecurring = result.is_recurring
-    flagged = result.confidence < 80
+    const ruleMatch = await matchRule(rawName, amount, tx.date)
+    if (ruleMatch) {
+      category = ruleMatch
+      confidence = 100
+      isRecurring = false
+      flagged = false
+    } else {
+      const result = await categorizeTransaction(merchantName, amount, tx.date)
+      category = result.category
+      confidence = result.confidence
+      isRecurring = result.is_recurring
+      flagged = result.confidence < 80
+    }
   } else {
     category = 'Income'
     confidence = 100

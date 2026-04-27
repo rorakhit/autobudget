@@ -63,7 +63,7 @@ export async function reviewTransactionsHandler(req: FastifyRequest, reply: Fast
         existing.minConfidence = tx.category_confidence ?? 0
         existing.category = tx.category ?? 'Other'
       }
-      if (existing.sample.length < 3 && !existing.sample.some(s => s.rawName === rawName)) {
+      if (existing.sample.length < 3 && !existing.sample.some(s => s.amount === Number(tx.amount))) {
         existing.sample.push({ amount: Number(tx.amount), date: tx.date, rawName })
       }
     }
