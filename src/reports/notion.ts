@@ -283,8 +283,15 @@ export async function updateNotionDashboards(agg: PeriodAggregates): Promise<voi
   }
 }
 
+function notionCell(text: string): object[] {
+  return text ? [{ type: 'text', text: { content: text } }] : []
+}
+
+function notionTableRow(cells: string[]): object {
+  return { type: 'table_row', table_row: { cells: cells.map(notionCell) } }
+}
+
 export async function writeRecentTransactions(): Promise<void> {
-  const { db } = await import('../db/client.js')
   const { data } = await db
     .from('transactions')
     .select('merchant_name, amount, date, category, category_confidence, is_income, flagged_for_review, accounts(name, mask)')
@@ -293,30 +300,89 @@ export async function writeRecentTransactions(): Promise<void> {
 
   const pageId = await getOrCreatePage('recent_transactions', '🔍 Recent Transactions', ROOT_PAGE_ID)
 
-  const blocks = (data ?? []).map(tx => {
+  // Clear existing content
+  let cursor: string | undefined
+  do {
+    const existing = await notion.blocks.children.list({ block_id: pageId, start_cursor: cursor, page_size: 100 })
+    for (const block of existing.results) await notion.blocks.delete({ block_id: block.id })
+    cursor = existing.has_more ? existing.next_cursor ?? undefined : undefined
+  } while (cursor)
+
+  if (!data?.length) {
+    await notion.blocks.children.append({ block_id: pageId, children: [bullet('No transactions yet.')] as any })
+    return
+  }
+
+  const headerRow = notionTableRow(['Date', 'Merchant', 'Amount', 'Category', 'Conf %', 'Account', 'Notes'])
+  const dataRows = data.map(tx => {
     const account = (tx.accounts as any)
     const acctLabel = account ? `${account.name}${account.mask ? ' ···' + account.mask : ''}` : ''
-    const flag = tx.flagged_for_review ? ' 🚩' : ''
-    const income = tx.is_income ? ' ↓ income' : ''
-    const conf = tx.is_income ? '' : ` (${tx.category_confidence}%)`
-    return bullet(`${tx.date} | ${tx.merchant_name} | $${Number(tx.amount).toFixed(2)} | ${tx.category}${conf}${income}${flag} | ${acctLabel}`)
+    const notes = [tx.flagged_for_review ? '🚩' : '', tx.is_income ? '↓ income' : ''].filter(Boolean).join(' ')
+    return notionTableRow([
+      tx.date,
+      tx.merchant_name ?? '',
+      `$${Number(tx.amount).toFixed(2)}`,
+      tx.category ?? '',
+      tx.is_income ? '—' : `${tx.category_confidence ?? 0}%`,
+      acctLabel,
+      notes,
+    ])
   })
 
-  await replacePageContent(pageId, blocks.length ? blocks : [bullet('No transactions yet.')])
+  // Create table with header + first batch of rows (Notion limit: 100 children per request)
+  const firstBatch = dataRows.slice(0, 99)
+  const createResp = await notion.blocks.children.append({
+    block_id: pageId,
+    children: [{ type: 'table', table: { table_width: 7, has_column_header: true, has_row_header: false }, children: [headerRow, ...firstBatch] }] as any,
+  })
+  const tableId = (createResp.results[0] as any).id
+
+  // Append any remaining rows directly to the table block
+  for (let i = 99; i < dataRows.length; i += 100) {
+    await notion.blocks.children.append({ block_id: tableId, children: dataRows.slice(i, i + 100) as any })
+  }
 }
 
 export async function writeFlaggedTransactions(): Promise<void> {
-  const { data } = await import('../db/client.js').then(m =>
-    m.db.from('transactions')
-      .select('merchant_name, amount, date, category, category_confidence')
-      .eq('flagged_for_review', true)
-      .order('date', { ascending: false })
-      .limit(200)
-  )
+  const { data } = await db
+    .from('transactions')
+    .select('merchant_name, amount, date, category, category_confidence')
+    .eq('flagged_for_review', true)
+    .order('date', { ascending: false })
+    .limit(200)
 
   const flaggedId = await getOrCreatePage('flagged_transactions', '🚩 Flagged Transactions', ROOT_PAGE_ID)
-  const blocks = (data ?? []).map(tx =>
-    bullet(`${tx.date} | ${tx.merchant_name} | $${Number(tx.amount).toFixed(2)} | Best guess: ${tx.category} (${tx.category_confidence}% confidence)`)
-  )
-  await replacePageContent(flaggedId, blocks.length ? blocks : [bullet('No flagged transactions.')])
+
+  // Clear existing content
+  let cursor: string | undefined
+  do {
+    const existing = await notion.blocks.children.list({ block_id: flaggedId, start_cursor: cursor, page_size: 100 })
+    for (const block of existing.results) await notion.blocks.delete({ block_id: block.id })
+    cursor = existing.has_more ? existing.next_cursor ?? undefined : undefined
+  } while (cursor)
+
+  if (!data?.length) {
+    await notion.blocks.children.append({ block_id: flaggedId, children: [bullet('No flagged transactions.')] as any })
+    return
+  }
+
+  const headerRow = notionTableRow(['Date', 'Merchant', 'Amount', 'Best Guess Category', 'Confidence'])
+  const dataRows = data.map(tx => notionTableRow([
+    tx.date,
+    tx.merchant_name ?? '',
+    `$${Number(tx.amount).toFixed(2)}`,
+    tx.category ?? '',
+    `${tx.category_confidence ?? 0}%`,
+  ]))
+
+  const firstBatch = dataRows.slice(0, 99)
+  const createResp = await notion.blocks.children.append({
+    block_id: flaggedId,
+    children: [{ type: 'table', table: { table_width: 5, has_column_header: true, has_row_header: false }, children: [headerRow, ...firstBatch] }] as any,
+  })
+  const tableId = (createResp.results[0] as any).id
+
+  for (let i = 99; i < dataRows.length; i += 100) {
+    await notion.blocks.children.append({ block_id: tableId, children: dataRows.slice(i, i + 100) as any })
+  }
 }
