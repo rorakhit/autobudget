@@ -46,6 +46,15 @@ export async function linkTokenHandler(req: FastifyRequest, reply: FastifyReply)
   await reply.send({ link_token })
 }
 
+export async function linkedAccountsHandler(req: FastifyRequest, reply: FastifyReply) {
+  if (!checkSetupToken(req, reply)) return
+  const { data: items } = await db
+    .from('plaid_items')
+    .select('id, institution_name, accounts(name, type, subtype, mask)')
+    .order('created_at', { ascending: true })
+  await reply.send(items ?? [])
+}
+
 export async function linkExchangeHandler(req: FastifyRequest, reply: FastifyReply) {
   if (!checkSetupToken(req, reply)) return
 

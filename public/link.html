@@ -11,6 +11,11 @@
     #status { margin-top: 16px; color: #666; }
     #connected { margin-top: 16px; }
     #connected li { margin: 4px 0; color: #333; }
+    .institution { margin-top: 20px; }
+    .institution strong { display: block; margin-bottom: 4px; }
+    .institution ul { margin: 0; padding-left: 20px; }
+    .institution li { color: #555; font-size: 0.9rem; margin: 2px 0; }
+    h2 { font-size: 1.1rem; margin-top: 40px; border-top: 1px solid #eee; padding-top: 16px; }
   </style>
 </head>
 <body>
@@ -19,12 +24,32 @@
   <button id="launch">Connect Account</button>
   <div id="status"></div>
   <ul id="connected"></ul>
+  <div id="existing"></div>
   <script src="https://cdn.plaid.com/link/v2/stable/link-initialize.js"></script>
   <script>
     const urlToken = new URLSearchParams(location.search).get('token')
     const status = document.getElementById('status')
     const btn = document.getElementById('launch')
     const connectedList = document.getElementById('connected')
+    const existingDiv = document.getElementById('existing')
+
+    fetch(`/link/accounts?token=${urlToken}`)
+      .then(r => r.json())
+      .then(items => {
+        if (!items.length) return
+        existingDiv.innerHTML = '<h2>Already linked</h2>'
+        items.forEach(item => {
+          const div = document.createElement('div')
+          div.className = 'institution'
+          div.innerHTML = `<strong>${item.institution_name}</strong><ul>${
+            (item.accounts ?? []).map(a =>
+              `<li>${a.name} (${a.subtype ?? a.type}${a.mask ? ' ···' + a.mask : ''})</li>`
+            ).join('')
+          }</ul>`
+          existingDiv.appendChild(div)
+        })
+      })
+      .catch(() => {})
 
     async function openLink() {
       btn.disabled = true
