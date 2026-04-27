@@ -35,7 +35,7 @@ Monthly/yearly cron → Notion historical reports
 
 ## Notion Dashboard
 
-Six pages updated automatically:
+Seven pages updated automatically:
 
 | Page | Updated |
 |------|---------|
@@ -44,7 +44,8 @@ Six pages updated automatically:
 | **Savings Plan** | Every paycheck |
 | **Historical** | Monthly + yearly |
 | **Reports** | Every paycheck, monthly, yearly |
-| **Flagged Transactions** | When Claude confidence < 80% |
+| **Flagged Transactions** | Every sync (confidence < 80%) |
+| **Recent Transactions** | Every sync (last 100, for pipeline monitoring) |
 
 ## Stack
 
@@ -70,9 +71,10 @@ Six pages updated automatically:
 
 Run the migrations in order in the Supabase SQL editor:
 
-```bash
+```
 src/db/migrations/001_initial.sql
 src/db/migrations/002_rls.sql
+src/db/migrations/003_categorization_rules.sql
 ```
 
 ### 3. Environment Variables
@@ -128,6 +130,42 @@ Visit `/link?token=<SETUP_SECRET>` to connect your accounts via Plaid Link.
 
 Visit `/setup?token=<SETUP_SECRET>` to enter APRs and your savings goal. This also writes the Notion homepage with navigation links to all dashboard sections.
 
+### 8. Register Webhook on Existing Items (first-time only)
+
+If accounts were linked before `PLAID_WEBHOOK_URL` was set, register the webhook URL on all existing Plaid items:
+
+```bash
+curl -X POST "https://<your-railway-url>/link/repair-webhooks?token=<SETUP_SECRET>"
+```
+
+Then trigger an initial sync:
+
+```bash
+curl -X POST "https://<your-railway-url>/link/sync-all?token=<SETUP_SECRET>"
+```
+
+## Setup & Admin Pages
+
+All pages require `?token=<SETUP_SECRET>`.
+
+| Page | Purpose |
+|------|---------|
+| `/link` | Connect bank accounts via Plaid Link |
+| `/setup` | Enter credit card APRs and savings goal |
+| `/review` | Review and correct transaction categories |
+| `/rules` | Manage categorization rules (run before Claude) |
+
+## Debugging Endpoints
+
+All require `?token=<SETUP_SECRET>`.
+
+| Endpoint | Purpose |
+|----------|---------|
+| `POST /link/repair-webhooks` | Register webhook URL on all Plaid items |
+| `POST /link/sync-all` | Manually trigger a full transaction sync for all items |
+| `GET /link/accounts` | List all linked institutions and accounts (JSON) |
+| `GET /health` | Health check — returns `{ status: "ok" }` |
+
 ## Development
 
 ```bash
@@ -147,7 +185,9 @@ src/
 │   ├── client.ts         # Plaid API singleton
 │   ├── webhook.ts        # JWT verification, webhook routing
 │   ├── sync.ts           # Cursor-based transaction sync
-│   └── link.ts           # Plaid Link flow + setup UI
+│   ├── link.ts           # Plaid Link flow + setup UI
+│   ├── review.ts         # Category review endpoints
+│   └── rules.ts          # Categorization rules endpoints
 ├── categorize/
 │   ├── claude.ts         # Anthropic client singleton
 │   └── categorize.ts     # Transaction categorization with merchant history
@@ -164,7 +204,8 @@ src/
     ├── client.ts         # Supabase client
     └── migrations/
         ├── 001_initial.sql
-        └── 002_rls.sql
+        ├── 002_rls.sql
+        └── 003_categorization_rules.sql
 tests/
 ├── categorize.test.ts
 ├── rules.test.ts
@@ -172,6 +213,9 @@ tests/
 public/
 ├── link.html             # Plaid Link UI
 ├── setup.html            # APR / savings goal form
+├── review.html           # Category review UI
+├── rules.html            # Categorization rules UI
+├── oauth-return.html     # Plaid OAuth redirect handler
 └── icon.svg
 ```
 
