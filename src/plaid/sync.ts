@@ -132,10 +132,40 @@ export async function syncTransactions(plaidItemId: string): Promise<{ added: nu
 
   await db.from('plaid_items').update({ cursor }).eq('id', plaidItemId)
 
+  await snapshotBalances(item.access_token)
+
   await Promise.all([
     writeFlaggedTransactions().catch(console.error),
     writeRecentTransactions().catch(console.error),
   ])
 
   return { added, modified, removed }
+}
+
+async function snapshotBalances(accessToken: string): Promise<void> {
+  try {
+    const response = await plaidClient.accountsBalanceGet({ access_token: accessToken })
+    const snapshots = []
+
+    for (const plaidAcct of response.data.accounts) {
+      const { data: acct } = await db
+        .from('accounts')
+        .select('id')
+        .eq('plaid_account_id', plaidAcct.account_id)
+        .single()
+
+      if (!acct) continue
+
+      // For loans and credit: current balance = amount owed
+      // For depository: current balance = funds available
+      const balance = plaidAcct.balances.current ?? plaidAcct.balances.available ?? 0
+      snapshots.push({ account_id: acct.id, balance: Math.abs(balance) })
+    }
+
+    if (snapshots.length > 0) {
+      await db.from('balance_snapshots').insert(snapshots)
+    }
+  } catch (err) {
+    console.error('Balance snapshot failed:', err)
+  }
 }

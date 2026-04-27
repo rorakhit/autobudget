@@ -1,5 +1,5 @@
 import { db } from '../db/client.js'
-import type { PeriodAggregates, CreditSummary, CreditCardSummary, RecurringCharge, SavingsEvent } from '../types.js'
+import type { PeriodAggregates, CreditSummary, CreditCardSummary, LoanSummary, LoanAccountSummary, RecurringCharge, SavingsEvent } from '../types.js'
 
 export function calculateSavingsRate(income: number, spend: number): number {
   if (income === 0) return 0
@@ -96,6 +96,81 @@ async function getCreditSummary(): Promise<CreditSummary> {
   }
 }
 
+async function getLoanSummary(periodStart: string): Promise<LoanSummary> {
+  const { data: loanAccts } = await db
+    .from('accounts')
+    .select('id, name, mask, subtype')
+    .eq('type', 'loan')
+
+  const { data: loanMeta } = await db
+    .from('loan_accounts')
+    .select('account_id, apr, original_balance')
+
+  const metaMap = Object.fromEntries((loanMeta ?? []).map(r => [r.account_id, r]))
+
+  const loans: LoanAccountSummary[] = []
+
+  for (const acct of loanAccts ?? []) {
+    const meta = metaMap[acct.id]
+
+    const { data: latestSnap } = await db
+      .from('balance_snapshots')
+      .select('balance')
+      .eq('account_id', acct.id)
+      .order('snapshot_at', { ascending: false })
+      .limit(1)
+      .single()
+
+    const { data: yearStartSnap } = await db
+      .from('balance_snapshots')
+      .select('balance')
+      .eq('account_id', acct.id)
+      .lte('snapshot_at', periodStart)
+      .order('snapshot_at', { ascending: false })
+      .limit(1)
+      .single()
+
+    const currentBalance = Number(latestSnap?.balance ?? 0)
+    const yearStartBalance = yearStartSnap ? Number(yearStartSnap.balance) : null
+    const principalPaid = yearStartBalance !== null ? Math.max(0, yearStartBalance - currentBalance) : null
+    const apr = meta?.apr ? Number(meta.apr) : null
+
+    // Estimate interest paid as avg balance × monthly rate × months elapsed
+    let estimatedInterestPaid: number | null = null
+    if (apr !== null && yearStartBalance !== null) {
+      const avgBalance = (yearStartBalance + currentBalance) / 2
+      const monthsElapsed = Math.max(1, Math.round(
+        (new Date().getTime() - new Date(periodStart).getTime()) / (1000 * 60 * 60 * 24 * 30)
+      ))
+      estimatedInterestPaid = (avgBalance * apr) / 100 / 12 * monthsElapsed
+    }
+
+    const projectedPayoffMonths = apr !== null && currentBalance > 0
+      ? estimatePayoffMonths(currentBalance, apr)
+      : null
+
+    loans.push({
+      accountId: acct.id,
+      name: acct.name,
+      mask: acct.mask,
+      subtype: acct.subtype,
+      currentBalance,
+      originalBalance: meta?.original_balance ? Number(meta.original_balance) : null,
+      apr,
+      yearStartBalance,
+      principalPaidThisYear: principalPaid,
+      estimatedInterestPaidThisYear: estimatedInterestPaid,
+      projectedPayoffMonths,
+    })
+  }
+
+  return {
+    loans,
+    totalCurrentBalance: loans.reduce((s, l) => s + l.currentBalance, 0),
+    totalPrincipalPaidThisYear: loans.reduce((s, l) => s + (l.principalPaidThisYear ?? 0), 0),
+  }
+}
+
 export async function getAggregatesForPeriod(
   periodStart: string,
   periodEnd: string,
@@ -139,7 +214,10 @@ export async function getAggregatesForPeriod(
     .gte('created_at', periodStart)
     .lte('created_at', periodEnd)
 
-  const creditSummary = await getCreditSummary()
+  const [creditSummary, loanSummary] = await Promise.all([
+    getCreditSummary(),
+    getLoanSummary(periodStart),
+  ])
   const savingsRate = calculateSavingsRate(totalIncome, totalSpend)
 
   return {
@@ -154,6 +232,7 @@ export async function getAggregatesForPeriod(
     largestPurchases,
     activeRecurringCharges: (recurringRaw ?? []) as RecurringCharge[],
     creditSummary,
+    loanSummary,
     savingsEvents: (savingsEventsRaw ?? []) as SavingsEvent[],
   }
 }

@@ -28,6 +28,22 @@ function formatAggregatesForPrompt(agg: PeriodAggregates): string {
     ),
   ]
 
+  if (agg.loanSummary.loans.length > 0) {
+    lines.push('', 'Loans:')
+    lines.push(`  Total loan balance: $${agg.loanSummary.totalCurrentBalance.toFixed(2)}`)
+    if (agg.loanSummary.totalPrincipalPaidThisYear > 0) {
+      lines.push(`  Principal paid this year: $${agg.loanSummary.totalPrincipalPaidThisYear.toFixed(2)}`)
+    }
+    for (const loan of agg.loanSummary.loans) {
+      const parts = [`$${loan.currentBalance.toFixed(2)}`]
+      if (loan.apr !== null) parts.push(`${loan.apr}% APR`)
+      if (loan.principalPaidThisYear !== null) parts.push(`$${loan.principalPaidThisYear.toFixed(2)} paid down this year`)
+      if (loan.estimatedInterestPaidThisYear !== null) parts.push(`~$${loan.estimatedInterestPaidThisYear.toFixed(2)} interest paid this year`)
+      if (loan.projectedPayoffMonths !== null) parts.push(`payoff in ~${loan.projectedPayoffMonths}mo`)
+      lines.push(`  ${loan.name}${loan.subtype ? ` (${loan.subtype})` : ''}: ${parts.join(', ')}`)
+    }
+  }
+
   if (agg.priorPeriod) {
     lines.push('', 'Prior period comparison:')
     lines.push(`  Prior spend: $${agg.priorPeriod.totalSpend.toFixed(2)}`)
@@ -76,8 +92,9 @@ Write a 5-7 paragraph year-end retrospective covering:
 2. What went well — specific improvements vs prior year, wins to be proud of (use exact numbers)
 3. What still needs work — honest assessment of persistent challenges, no shame just facts
 4. Credit journey — where utilization started, where it ended, interest paid across the year
-5. Savings performance — did they hit their goal? By how much?
-6. 2-3 specific focus areas for the coming year
+5. Loan progress — principal paid down, interest cost, which loans are closest to payoff (skip if no loans)
+6. Savings performance — did they hit their goal? By how much?
+7. 2-3 specific focus areas for the coming year
 
 Tone: a coach who has seen all the data. Warm, honest, and direct. Celebrate genuine wins. Be real about challenges. End with belief in their ability to improve. Use exact numbers throughout.`,
   }

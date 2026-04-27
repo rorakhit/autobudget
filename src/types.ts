@@ -157,6 +157,26 @@ export interface CreditSummary {
   trend: 'growing' | 'shrinking' | 'stable' | 'unknown'
 }
 
+export interface LoanAccountSummary {
+  accountId: string
+  name: string
+  mask: string | null
+  subtype: string | null
+  currentBalance: number
+  originalBalance: number | null
+  apr: number | null
+  yearStartBalance: number | null
+  principalPaidThisYear: number | null
+  estimatedInterestPaidThisYear: number | null
+  projectedPayoffMonths: number | null
+}
+
+export interface LoanSummary {
+  loans: LoanAccountSummary[]
+  totalCurrentBalance: number
+  totalPrincipalPaidThisYear: number
+}
+
 export interface PeriodAggregates {
   periodStart: string
   periodEnd: string
@@ -169,6 +189,7 @@ export interface PeriodAggregates {
   largestPurchases: Array<{ merchant: string; amount: number; date: string; category: string }>
   activeRecurringCharges: RecurringCharge[]
   creditSummary: CreditSummary
+  loanSummary: LoanSummary
   savingsEvents: SavingsEvent[]
   priorPeriod?: PeriodAggregates
 }

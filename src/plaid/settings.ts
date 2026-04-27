@@ -26,16 +26,18 @@ export async function settingsPageHandler(req: FastifyRequest, reply: FastifyRep
 export async function settingsDataHandler(req: FastifyRequest, reply: FastifyReply) {
   if (!checkSetupToken(req, reply)) return
 
-  const [{ data: accounts }, allCategories, { data: custom }, { data: creditAccounts }] = await Promise.all([
+  const [{ data: accounts }, allCategories, { data: custom }, { data: creditAccounts }, { data: loanAccounts }] = await Promise.all([
     db.from('accounts')
       .select('id, name, display_name, mask, type, subtype, plaid_items(institution_name)')
       .order('name'),
     getAllCategories(),
     db.from('custom_categories').select('name').order('name'),
     db.from('credit_accounts').select('account_id, apr, credit_limit'),
+    db.from('loan_accounts').select('account_id, apr, original_balance'),
   ])
 
   const aprMap = Object.fromEntries((creditAccounts ?? []).map(r => [r.account_id, r]))
+  const loanMap = Object.fromEntries((loanAccounts ?? []).map(r => [r.account_id, r]))
 
   await reply.send({
     accounts: accounts ?? [],
@@ -43,6 +45,7 @@ export async function settingsDataHandler(req: FastifyRequest, reply: FastifyRep
     systemCategories: CATEGORIES,
     customCategories: (custom ?? []).map(r => r.name),
     aprMap,
+    loanMap,
   })
 }
 
@@ -92,6 +95,27 @@ export async function deleteCategoryHandler(req: FastifyRequest, reply: FastifyR
   }
 
   const { error } = await db.from('custom_categories').delete().eq('name', name)
+  if (error) return reply.code(500).send({ error: error.message })
+  await reply.send({ ok: true })
+}
+
+export async function updateLoanHandler(req: FastifyRequest, reply: FastifyReply) {
+  if (!checkSetupToken(req, reply)) return
+
+  const { account_id, apr, original_balance } =
+    ((req.body as any)._parsed ?? req.body) as { account_id: string; apr?: number; original_balance?: number }
+
+  if (!account_id) return reply.code(400).send({ error: 'account_id required' })
+
+  const { error } = await db.from('loan_accounts').upsert(
+    {
+      account_id,
+      apr: apr != null ? Number(apr) : null,
+      original_balance: original_balance != null ? Number(original_balance) : null,
+    },
+    { onConflict: 'account_id' }
+  )
+
   if (error) return reply.code(500).send({ error: error.message })
   await reply.send({ ok: true })
 }
