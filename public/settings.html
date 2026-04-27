@@ -26,6 +26,21 @@
     button.primary:disabled { opacity: 0.4; cursor: default; }
     .status-msg { font-size: 0.85rem; margin-top: 10px; min-height: 18px; }
 
+    /* Account cards (loans + credit cards) */
+    .acct-card { border: 1px solid #e5e7eb; border-radius: 8px; padding: 14px 16px; margin-bottom: 10px; }
+    .acct-card-name { font-weight: 600; font-size: 0.95rem; }
+    .acct-card-sub { color: #999; font-size: 0.8rem; margin-top: 2px; margin-bottom: 12px; }
+    .acct-card-fields { display: flex; gap: 10px; align-items: flex-end; flex-wrap: wrap; }
+    .acct-field { display: flex; flex-direction: column; gap: 3px; }
+    .acct-field label { font-size: 0.75rem; font-weight: 600; color: #555; text-transform: uppercase; letter-spacing: 0.04em; }
+    .acct-field label span { font-weight: 400; color: #aaa; text-transform: none; letter-spacing: 0; }
+    .acct-field input { width: 130px; padding: 6px 8px; border: 1px solid #ddd; border-radius: 6px; font-size: 0.9rem; }
+    .acct-field input:focus { outline: none; border-color: #6366f1; }
+    .save-acct-btn { padding: 7px 16px; background: #6366f1; color: white; border: none; border-radius: 6px; font-size: 0.85rem; cursor: pointer; white-space: nowrap; }
+    .save-acct-btn:hover { background: #4f46e5; }
+    .save-acct-btn:disabled { opacity: 0.4; cursor: default; }
+    .acct-status { font-size: 0.8rem; color: #16a34a; }
+
     /* Categories */
     .categories-grid { display: flex; flex-wrap: wrap; gap: 8px; margin-bottom: 20px; }
     .cat-chip {
@@ -42,18 +57,6 @@
     .add-category { display: flex; gap: 8px; align-items: center; }
     #new-cat-input { width: 200px; }
     #add-cat-btn { padding: 8px 16px; }
-
-    /* APR table */
-    .apr-table { width: 100%; border-collapse: collapse; margin-bottom: 8px; }
-    .apr-table th { text-align: left; font-size: 0.78rem; font-weight: 600; color: #555; text-transform: uppercase; letter-spacing: 0.04em; padding: 0 8px 8px 0; vertical-align: bottom; }
-    .apr-table td { padding: 6px 8px 6px 0; vertical-align: middle; }
-    .apr-table input[type="number"] { display: block; }
-    .apr-table input[type="number"] { width: 100px; padding: 6px 8px; border: 1px solid #ddd; border-radius: 6px; font-size: 0.9rem; }
-    .apr-table input[type="number"]:focus { outline: none; border-color: #6366f1; }
-    .save-apr-btn { padding: 6px 14px; background: #6366f1; color: white; border: none; border-radius: 6px; font-size: 0.85rem; cursor: pointer; white-space: nowrap; }
-    .save-apr-btn:hover { background: #4f46e5; }
-    .save-apr-btn:disabled { opacity: 0.4; cursor: default; }
-    .apr-status { font-size: 0.8rem; color: #16a34a; min-width: 80px; }
   </style>
 </head>
 <body>
@@ -121,57 +124,23 @@
     const addCatBtn = document.getElementById('add-cat-btn')
     const catStatus = document.getElementById('cat-status')
 
-    function renderLoanSection() {
-      const loanSection = document.getElementById('loan-section')
-      const loans = accounts.filter(a => a.type === 'loan')
-      if (!loans.length) {
-        loanSection.innerHTML = '<p style="color:#777;font-size:0.9rem">No loan accounts linked.</p>'
-        return
-      }
-      loanSection.innerHTML = `
-        <table class="apr-table">
-          <thead><tr>
-            <th>Loan</th>
-            <th>APR (%)<br><span style="font-weight:400;color:#999;text-transform:none;letter-spacing:0">(optional)</span></th>
-            <th>Original Balance ($)<br><span style="font-weight:400;color:#999;text-transform:none;letter-spacing:0">(optional)</span></th>
-            <th></th>
-            <th></th>
-          </tr></thead>
-          <tbody>
-            ${loans.map(a => {
-              const existing = loanMap[a.id] || {}
-              const subtype = a.subtype ? `<br><span style="color:#999;font-size:0.78rem">(${a.subtype})</span>` : ''
-              return `<tr data-account-id="${a.id}">
-                <td>${a.name}${a.mask ? ' ···' + a.mask : ''}${subtype}</td>
-                <td><input type="number" class="loan-apr-input" step="0.01" min="0" max="100" placeholder="e.g. 5.50" value="${existing.apr ?? ''}"></td>
-                <td><input type="number" class="loan-orig-input" step="1" min="0" placeholder="e.g. 30000" value="${existing.original_balance ?? ''}"></td>
-                <td><button class="save-apr-btn">Save</button></td>
-                <td><span class="apr-status"></span></td>
-              </tr>`
-            }).join('')}
-          </tbody>
-        </table>`
-
-      loanSection.querySelectorAll('tr[data-account-id]').forEach(row => {
-        row.querySelector('.save-apr-btn').addEventListener('click', async () => {
-          const account_id = row.dataset.accountId
-          const aprVal = row.querySelector('.loan-apr-input').value
-          const origVal = row.querySelector('.loan-orig-input').value
-          const btn = row.querySelector('.save-apr-btn')
-          const status = row.querySelector('.apr-status')
+    function makeSaveHandler(container, url, getBody, onSuccess) {
+      container.querySelectorAll('.acct-card[data-account-id]').forEach(card => {
+        card.querySelector('.save-acct-btn').addEventListener('click', async () => {
+          const account_id = card.dataset.accountId
+          const btn = card.querySelector('.save-acct-btn')
+          const status = card.querySelector('.acct-status')
           btn.disabled = true
           status.textContent = 'Saving…'
           try {
-            const body = { account_id }
-            if (aprVal) body.apr = parseFloat(aprVal)
-            if (origVal) body.original_balance = parseFloat(origVal)
-            const res = await fetch(`/settings/update-loan?token=${urlToken}`, {
+            const body = getBody(card, account_id)
+            const res = await fetch(`${url}?token=${urlToken}`, {
               method: 'POST',
               headers: { 'Content-Type': 'application/json' },
               body: JSON.stringify(body),
             })
             if (!res.ok) throw new Error((await res.json()).error)
-            loanMap[account_id] = { apr: body.apr, original_balance: body.original_balance }
+            onSuccess(account_id, body)
             status.textContent = '✅ Saved'
             setTimeout(() => { status.textContent = '' }, 2000)
           } catch (err) {
@@ -182,6 +151,46 @@
       })
     }
 
+    function renderLoanSection() {
+      const loanSection = document.getElementById('loan-section')
+      const loans = accounts.filter(a => a.type === 'loan')
+      if (!loans.length) {
+        loanSection.innerHTML = '<p style="color:#777;font-size:0.9rem">No loan accounts linked.</p>'
+        return
+      }
+      loanSection.innerHTML = loans.map(a => {
+        const existing = loanMap[a.id] || {}
+        return `<div class="acct-card" data-account-id="${a.id}">
+          <div class="acct-card-name">${a.name}${a.mask ? ' ···' + a.mask : ''}</div>
+          <div class="acct-card-sub">${a.subtype ? '(' + a.subtype + ')' : ''}</div>
+          <div class="acct-card-fields">
+            <div class="acct-field">
+              <label>APR (%) <span>(optional)</span></label>
+              <input type="number" class="loan-apr-input" step="0.01" min="0" max="100" placeholder="e.g. 5.50" value="${existing.apr ?? ''}">
+            </div>
+            <div class="acct-field">
+              <label>Original Balance ($) <span>(optional)</span></label>
+              <input type="number" class="loan-orig-input" step="1" min="0" placeholder="e.g. 30000" value="${existing.original_balance ?? ''}">
+            </div>
+            <button class="save-acct-btn">Save</button>
+            <span class="acct-status"></span>
+          </div>
+        </div>`
+      }).join('')
+
+      makeSaveHandler(loanSection, '/settings/update-loan',
+        (card, account_id) => {
+          const body = { account_id }
+          const aprVal = card.querySelector('.loan-apr-input').value
+          const origVal = card.querySelector('.loan-orig-input').value
+          if (aprVal) body.apr = parseFloat(aprVal)
+          if (origVal) body.original_balance = parseFloat(origVal)
+          return body
+        },
+        (account_id, body) => { loanMap[account_id] = { apr: body.apr, original_balance: body.original_balance } }
+      )
+    }
+
     function renderAprSection() {
       const aprSection = document.getElementById('apr-section')
       const creditCards = accounts.filter(a => a.type === 'credit')
@@ -189,55 +198,34 @@
         aprSection.innerHTML = '<p style="color:#777;font-size:0.9rem">No credit accounts linked.</p>'
         return
       }
-      aprSection.innerHTML = `
-        <table class="apr-table">
-          <thead><tr>
-            <th>Account</th>
-            <th>APR (%)</th>
-            <th>Limit ($)</th>
-            <th></th>
-            <th></th>
-          </tr></thead>
-          <tbody>
-            ${creditCards.map(a => {
-              const existing = aprMap[a.id] || {}
-              return `<tr data-account-id="${a.id}">
-                <td>${a.name}${a.mask ? ' ···' + a.mask : ''}</td>
-                <td><input type="number" class="apr-input" step="0.01" min="0" max="100" placeholder="e.g. 24.99" value="${existing.apr ?? ''}"></td>
-                <td><input type="number" class="limit-input" step="1" min="0" placeholder="e.g. 5000" value="${existing.credit_limit ?? ''}"></td>
-                <td><button class="save-apr-btn">Save</button></td>
-                <td><span class="apr-status"></span></td>
-              </tr>`
-            }).join('')}
-          </tbody>
-        </table>`
+      aprSection.innerHTML = creditCards.map(a => {
+        const existing = aprMap[a.id] || {}
+        return `<div class="acct-card" data-account-id="${a.id}">
+          <div class="acct-card-name">${a.name}${a.mask ? ' ···' + a.mask : ''}</div>
+          <div class="acct-card-sub">${(a.plaid_items?.institution_name) || ''}</div>
+          <div class="acct-card-fields">
+            <div class="acct-field">
+              <label>APR (%)</label>
+              <input type="number" class="apr-input" step="0.01" min="0" max="100" placeholder="e.g. 24.99" value="${existing.apr ?? ''}">
+            </div>
+            <div class="acct-field">
+              <label>Credit Limit ($)</label>
+              <input type="number" class="limit-input" step="1" min="0" placeholder="e.g. 5000" value="${existing.credit_limit ?? ''}">
+            </div>
+            <button class="save-acct-btn">Save</button>
+            <span class="acct-status"></span>
+          </div>
+        </div>`
+      }).join('')
 
-      aprSection.querySelectorAll('tr[data-account-id]').forEach(row => {
-        row.querySelector('.save-apr-btn').addEventListener('click', async () => {
-          const account_id = row.dataset.accountId
-          const apr = parseFloat(row.querySelector('.apr-input').value)
-          const credit_limit = parseFloat(row.querySelector('.limit-input').value)
-          const btn = row.querySelector('.save-apr-btn')
-          const status = row.querySelector('.apr-status')
-          if (isNaN(apr) || isNaN(credit_limit)) { status.textContent = '⚠ Fill both fields'; return }
-          btn.disabled = true
-          status.textContent = 'Saving…'
-          try {
-            const res = await fetch(`/settings/update-apr?token=${urlToken}`, {
-              method: 'POST',
-              headers: { 'Content-Type': 'application/json' },
-              body: JSON.stringify({ account_id, apr, credit_limit }),
-            })
-            if (!res.ok) throw new Error((await res.json()).error)
-            aprMap[account_id] = { apr, credit_limit }
-            status.textContent = '✅ Saved'
-            setTimeout(() => { status.textContent = '' }, 2000)
-          } catch (err) {
-            status.textContent = `❌ ${err.message}`
-          }
-          btn.disabled = false
-        })
-      })
+      makeSaveHandler(aprSection, '/settings/update-apr',
+        (card, account_id) => ({
+          account_id,
+          apr: parseFloat(card.querySelector('.apr-input').value),
+          credit_limit: parseFloat(card.querySelector('.limit-input').value),
+        }),
+        (account_id, body) => { aprMap[account_id] = { apr: body.apr, credit_limit: body.credit_limit } }
+      )
     }
 
     function renderAccounts() {
