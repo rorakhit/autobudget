@@ -139,7 +139,7 @@
           <tbody>
             ${loans.map(a => {
               const existing = loanMap[a.id] || {}
-              const subtype = a.subtype ? ` <span style="color:#999;font-size:0.8rem">(${a.subtype})</span>` : ''
+              const subtype = a.subtype ? `<br><span style="color:#999;font-size:0.78rem">(${a.subtype})</span>` : ''
               return `<tr data-account-id="${a.id}">
                 <td>${a.name}${a.mask ? ' ···' + a.mask : ''}${subtype}</td>
                 <td><input type="number" class="loan-apr-input" step="0.01" min="0" max="100" placeholder="e.g. 5.50" value="${existing.apr ?? ''}"></td>
