@@ -140,7 +140,7 @@
     function fmt(n) { return '$' + Math.abs(n).toLocaleString('en-US', { minimumFractionDigits: 0, maximumFractionDigits: 0 }) }
 
     function showDashboard(stats) {
-      document.getElementById('s-networth').textContent = fmt(stats.netWorth)
+      document.getElementById('s-networth').textContent = (stats.netWorth < 0 ? '-' : '') + fmt(stats.netWorth)
       const delta = stats.netWorthDelta
       const deltaEl = document.getElementById('s-networth-delta')
       const networthEl = document.getElementById('s-networth')
@@ -185,21 +185,29 @@
       if (!secret) return
       const btn = document.getElementById('unlock-btn')
       btn.disabled = true
-      const res = await fetch('/auth', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ secret }),
-      })
-      if (res.status === 403) {
-        document.getElementById('login-error').textContent = 'Incorrect secret.'
+      try {
+        const res = await fetch('/auth', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ secret }),
+        })
+        if (res.status === 403) {
+          document.getElementById('login-error').textContent = 'Incorrect secret.'
+          return
+        }
+        if (!res.ok) {
+          document.getElementById('login-error').textContent = 'Server error, please try again.'
+          return
+        }
+        document.getElementById('login-error').textContent = ''
+        sessionStorage.setItem('ab_authed', '1')
+        const stats = await fetch('/home/stats').then(r => r.json())
+        showDashboard(stats)
+      } catch {
+        document.getElementById('login-error').textContent = 'Network error, please try again.'
+      } finally {
         btn.disabled = false
-        return
       }
-      document.getElementById('login-error').textContent = ''
-      sessionStorage.setItem('ab_authed', '1')
-      const stats = await fetch('/home/stats').then(r => r.json())
-      showDashboard(stats)
-      btn.disabled = false
     }
 
     async function handleAuthBadge(e) {

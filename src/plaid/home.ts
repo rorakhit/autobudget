@@ -23,7 +23,7 @@ export async function homeStatsHandler(req: FastifyRequest, reply: FastifyReply)
     db.from('balance_snapshots')
       .select('account_id, balance, snapshot_at')
       .lte('snapshot_at', thirtyDaysAgo.toISOString())
-      .order('snapshot_at', { ascending: false })
+      .order('snapshot_at', { ascending: true })
       .limit(500),
     db.from('transactions')
       .select('amount, is_income')
