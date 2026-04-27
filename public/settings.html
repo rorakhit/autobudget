@@ -27,15 +27,16 @@
     .status-msg { font-size: 0.85rem; margin-top: 10px; min-height: 18px; }
 
     /* Account cards (loans + credit cards) */
-    .acct-card { border: 1px solid #e5e7eb; border-radius: 8px; padding: 14px 16px; margin-bottom: 10px; }
+    .acct-card { border: 1px solid #e5e7eb; border-radius: 8px; padding: 14px 16px; margin-bottom: 10px; max-width: 480px; }
     .acct-card-name { font-weight: 600; font-size: 0.95rem; }
     .acct-card-sub { color: #999; font-size: 0.8rem; margin-top: 2px; margin-bottom: 12px; }
     .acct-card-fields { display: flex; gap: 10px; align-items: flex-end; flex-wrap: wrap; }
     .acct-field { display: flex; flex-direction: column; gap: 3px; }
     .acct-field label { font-size: 0.75rem; font-weight: 600; color: #555; text-transform: uppercase; letter-spacing: 0.04em; }
     .acct-field label span { font-weight: 400; color: #aaa; text-transform: none; letter-spacing: 0; }
-    .acct-field input { width: 130px; padding: 6px 8px; border: 1px solid #ddd; border-radius: 6px; font-size: 0.9rem; }
+    .acct-field input { width: 120px; padding: 6px 8px; border: 1px solid #ddd; border-radius: 6px; font-size: 0.9rem; }
     .acct-field input:focus { outline: none; border-color: #6366f1; }
+    .acct-card-footer { display: flex; justify-content: flex-end; align-items: center; gap: 10px; margin-top: 12px; }
     .save-acct-btn { padding: 7px 16px; background: #6366f1; color: white; border: none; border-radius: 6px; font-size: 0.85rem; cursor: pointer; white-space: nowrap; }
     .save-acct-btn:hover { background: #4f46e5; }
     .save-acct-btn:disabled { opacity: 0.4; cursor: default; }
@@ -172,8 +173,10 @@
               <label>Original Balance ($) <span>(optional)</span></label>
               <input type="number" class="loan-orig-input" step="1" min="0" placeholder="e.g. 30000" value="${existing.original_balance ?? ''}">
             </div>
-            <button class="save-acct-btn">Save</button>
+          </div>
+          <div class="acct-card-footer">
             <span class="acct-status"></span>
+            <button class="save-acct-btn">Save</button>
           </div>
         </div>`
       }).join('')
@@ -212,8 +215,10 @@
               <label>Credit Limit ($)</label>
               <input type="number" class="limit-input" step="1" min="0" placeholder="e.g. 5000" value="${existing.credit_limit ?? ''}">
             </div>
-            <button class="save-acct-btn">Save</button>
+          </div>
+          <div class="acct-card-footer">
             <span class="acct-status"></span>
+            <button class="save-acct-btn">Save</button>
           </div>
         </div>`
       }).join('')
