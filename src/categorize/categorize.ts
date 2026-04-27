@@ -48,7 +48,8 @@ Return this exact JSON shape:
 
 export function parseCategorizationResponse(raw: string): CategorizationResult {
   try {
-    const parsed = JSON.parse(raw) as {
+    const cleaned = raw.replace(/^```(?:json)?\s*/i, '').replace(/\s*```\s*$/, '').trim()
+    const parsed = JSON.parse(cleaned) as {
       category: string
       confidence: number
       is_recurring: boolean
@@ -97,7 +98,7 @@ export async function categorizeTransaction(
   const prompt = buildCategorizationPrompt({ merchantName, amount, date, history })
 
   const message = await anthropic.messages.create({
-    model: 'claude-sonnet-4-6',
+    model: 'claude-haiku-4-5-20251001',
     max_tokens: 256,
     messages: [{ role: 'user', content: prompt }],
   })
