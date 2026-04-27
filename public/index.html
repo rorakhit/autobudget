@@ -6,165 +6,219 @@
   <title>AutoBudget</title>
   <style>
     * { box-sizing: border-box; }
-    body { font-family: system-ui, sans-serif; max-width: 760px; margin: 40px auto; padding: 0 20px; color: #111; }
+    body { font-family: system-ui, sans-serif; max-width: 820px; margin: 40px auto; padding: 0 20px; color: #111; }
 
-    .header { display: flex; align-items: baseline; gap: 12px; margin-bottom: 6px; }
-    h1 { font-size: 1.5rem; margin: 0; }
-    .token-pill {
-      display: inline-flex; align-items: center; gap: 6px;
-      background: #f3f4f6; border-radius: 20px; padding: 3px 10px 3px 8px;
-      font-size: 0.78rem; color: #6b7280; cursor: pointer; border: 1px solid #e5e7eb;
+    /* Header */
+    .header { display: flex; align-items: flex-end; justify-content: space-between; margin-bottom: 18px; }
+    .header-left h1 { font-size: 1.5rem; font-weight: 800; letter-spacing: -0.03em; margin: 0 0 2px; }
+    .header-left .subtitle { font-size: 0.78rem; color: #9ca3af; margin: 0; }
+    .auth-badge { display: flex; align-items: center; gap: 5px; background: #f3f4f6; border-radius: 20px; padding: 4px 12px; font-size: 0.75rem; color: #6b7280; cursor: pointer; border: 1px solid #e5e7eb; text-decoration: none; }
+    .auth-badge:hover { background: #e5e7eb; }
+    .auth-dot { width: 7px; height: 7px; border-radius: 50%; background: #d1d5db; flex-shrink: 0; }
+    .auth-dot.authed { background: #16a34a; }
+
+    /* Stats band */
+    .stats-band {
+      display: flex;
+      background: linear-gradient(135deg, #4f46e5 0%, #7c3aed 100%);
+      border-radius: 12px; overflow: hidden; margin-bottom: 20px;
+      transition: filter 0.4s ease, opacity 0.4s ease;
     }
-    .token-pill:hover { background: #e5e7eb; }
-    .token-dot { width: 7px; height: 7px; border-radius: 50%; background: #16a34a; flex-shrink: 0; }
-    .token-dot.unset { background: #d1d5db; }
+    .stats-band.locked { filter: blur(4px); opacity: 0.45; pointer-events: none; }
+    .stat {
+      flex: 1; display: flex; flex-direction: column;
+      padding: 16px 18px; border-right: 1px solid rgba(255,255,255,0.12);
+    }
+    .stat:last-child { border-right: none; }
+    .stat .s-label { font-size: 0.62rem; color: rgba(255,255,255,0.55); text-transform: uppercase; letter-spacing: 0.07em; margin-bottom: 6px; }
+    .stat .s-value { font-size: 1.05rem; font-weight: 700; color: white; line-height: 1; }
+    .stat .s-sub { font-size: 0.68rem; color: rgba(255,255,255,0.5); margin-top: 4px; }
+    .s-value.alert { color: #fca5a5; }
+    .s-value.positive { color: #86efac; }
+    .s-value.negative { color: #fca5a5; }
 
-    .subtitle { color: #666; font-size: 0.9rem; margin-bottom: 36px; }
-
-    /* Token gate */
-    #token-gate { margin-bottom: 32px; }
-    .token-form { display: flex; gap: 8px; align-items: center; max-width: 400px; }
-    .token-form input {
+    /* Login prompt */
+    #login-prompt {
+      background: #f8f9fa; border: 1px solid #e5e7eb; border-radius: 10px;
+      padding: 16px 20px; margin-bottom: 20px;
+    }
+    #login-prompt p { margin: 0 0 10px; font-size: 0.88rem; font-weight: 600; color: #374151; }
+    .login-row { display: flex; gap: 8px; }
+    .login-row input {
       flex: 1; padding: 8px 12px; border: 1px solid #ddd; border-radius: 6px;
       font-size: 0.9rem; font-family: monospace;
     }
-    .token-form input:focus { outline: none; border-color: #6366f1; }
+    .login-row input:focus { outline: none; border-color: #6366f1; }
     button.primary { padding: 8px 18px; background: #6366f1; color: white; border: none; border-radius: 6px; font-size: 0.9rem; cursor: pointer; white-space: nowrap; }
     button.primary:hover { background: #4f46e5; }
-    .token-error { font-size: 0.83rem; color: #dc2626; margin-top: 6px; }
+    button.primary:disabled { opacity: 0.4; cursor: default; }
+    .login-error { font-size: 0.8rem; color: #dc2626; margin-top: 6px; min-height: 16px; }
 
     /* Nav grid */
-    #nav-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 14px; }
-    @media (max-width: 500px) { #nav-grid { grid-template-columns: 1fr; } }
-
+    #nav-grid { display: none; grid-template-columns: repeat(3, 1fr); gap: 12px; }
+    #nav-grid.visible { display: grid; }
+    @media (max-width: 520px) { #nav-grid { grid-template-columns: 1fr 1fr; } }
     .nav-card {
       display: block; text-decoration: none; color: inherit;
-      border: 1px solid #e5e7eb; border-radius: 10px; padding: 18px 20px;
+      border: 1px solid #e5e7eb; border-radius: 10px; padding: 16px 18px;
       transition: border-color 0.15s, box-shadow 0.15s;
     }
     .nav-card:hover { border-color: #6366f1; box-shadow: 0 2px 8px rgba(99,102,241,0.1); }
-    .nav-card .card-icon { font-size: 1.4rem; margin-bottom: 8px; }
-    .nav-card .card-title { font-size: 0.98rem; font-weight: 600; margin-bottom: 4px; }
-    .nav-card .card-desc { font-size: 0.82rem; color: #6b7280; line-height: 1.45; }
+    .nav-card .card-icon { font-size: 1.3rem; margin-bottom: 8px; }
+    .nav-card .card-title { font-size: 0.88rem; font-weight: 700; margin-bottom: 3px; }
+    .nav-card .card-desc { font-size: 0.75rem; color: #9ca3af; line-height: 1.4; }
+    .card-badge {
+      display: inline-block; margin-top: 7px;
+      background: #fee2e2; color: #dc2626;
+      font-size: 0.65rem; font-weight: 700; border-radius: 10px; padding: 2px 7px;
+    }
   </style>
 </head>
 <body>
   <div class="header">
-    <h1>AutoBudget</h1>
-    <span class="token-pill" id="token-pill" onclick="clearToken()" title="Click to sign out">
-      <span class="token-dot unset" id="token-dot"></span>
-      <span id="token-pill-label">not authenticated</span>
-    </span>
-  </div>
-  <p class="subtitle">Personal finance automation — Plaid sync, AI insights, paycheck allocation.</p>
-
-  <div id="token-gate">
-    <div class="token-form">
-      <input type="password" id="token-input" placeholder="Enter setup secret…" autocomplete="off">
-      <button class="primary" onclick="submitToken()">Unlock</button>
+    <div class="header-left">
+      <h1>AutoBudget</h1>
+      <p class="subtitle">Personal Finance Automation</p>
     </div>
-    <div class="token-error" id="token-error"></div>
+    <a class="auth-badge" id="auth-badge" href="#" onclick="handleAuthBadge(event)">
+      <span class="auth-dot" id="auth-dot"></span>
+      <span id="auth-label">not authenticated</span>
+    </a>
   </div>
 
-  <div id="nav-grid" style="display:none">
-    <a class="nav-card" id="link-card" href="#">
+  <div class="stats-band locked" id="stats-band">
+    <div class="stat"><span class="s-label">Net worth</span><span class="s-value" id="s-networth">—</span><span class="s-sub" id="s-networth-delta">—</span></div>
+    <div class="stat"><span class="s-label">CC balance</span><span class="s-value" id="s-cc">—</span><span class="s-sub" id="s-cc-sub">—</span></div>
+    <div class="stat"><span class="s-label">Total debt</span><span class="s-value" id="s-debt">—</span><span class="s-sub">mortgage + loans</span></div>
+    <div class="stat"><span class="s-label">Savings / mo</span><span class="s-value" id="s-savings">—</span><span class="s-sub">last 30 days</span></div>
+    <div class="stat"><span class="s-label">To review</span><span class="s-value" id="s-review">—</span><span class="s-sub">transactions</span></div>
+  </div>
+
+  <div id="login-prompt">
+    <p>Enter your setup secret to continue</p>
+    <div class="login-row">
+      <input type="password" id="secret-input" placeholder="Setup secret…" autocomplete="off">
+      <button class="primary" id="unlock-btn" onclick="login()">Unlock</button>
+    </div>
+    <div class="login-error" id="login-error"></div>
+  </div>
+
+  <div id="nav-grid">
+    <a class="nav-card" href="/link" id="nc-link">
       <div class="card-icon">🔗</div>
       <div class="card-title">Link Accounts</div>
-      <div class="card-desc">Connect bank accounts, credit cards, and loans via Plaid.</div>
+      <div class="card-desc">Connect bank accounts via Plaid</div>
     </a>
-    <a class="nav-card" id="review-card" href="#">
+    <a class="nav-card" href="/review" id="nc-review">
       <div class="card-icon">🔍</div>
-      <div class="card-title">Review Transactions</div>
-      <div class="card-desc">Categorize flagged transactions and correct merchant names.</div>
+      <div class="card-title">Review</div>
+      <div class="card-desc">Categorize flagged transactions</div>
     </a>
-    <a class="nav-card" id="rules-card" href="#">
+    <a class="nav-card" href="/settings" id="nc-settings">
       <div class="card-icon">⚙️</div>
-      <div class="card-title">Categorization Rules</div>
-      <div class="card-desc">Manage auto-categorization rules for recurring merchants.</div>
-    </a>
-    <a class="nav-card" id="settings-card" href="#">
-      <div class="card-icon">💳</div>
       <div class="card-title">Settings</div>
-      <div class="card-desc">Account names, APRs, credit limits, and custom categories.</div>
+      <div class="card-desc">APRs, limits, account names</div>
     </a>
-    <a class="nav-card" id="paycheck-card" href="#">
+    <a class="nav-card" href="/paycheck" id="nc-paycheck">
       <div class="card-icon">💸</div>
-      <div class="card-title">Paycheck Setup</div>
-      <div class="card-desc">Set trigger account and classify recurring charges as pre-allocated or discretionary.</div>
+      <div class="card-title">Paycheck</div>
+      <div class="card-desc">Configure allocation setup</div>
     </a>
-    <a class="nav-card" id="apple-card-card" href="#">
+    <a class="nav-card" href="/rules" id="nc-rules">
+      <div class="card-icon">📋</div>
+      <div class="card-title">Rules</div>
+      <div class="card-desc">Auto-categorization rules</div>
+    </a>
+    <a class="nav-card" href="/apple-card" id="nc-apple">
       <div class="card-icon">🍎</div>
-      <div class="card-title">Apple Card Import</div>
-      <div class="card-desc">Import Apple Card transactions via CSV export from Wallet.</div>
+      <div class="card-title">Apple Card</div>
+      <div class="card-desc">Import CSV transactions</div>
     </a>
   </div>
 
   <script>
-    const PAGES = {
-      'link-card':        '/link',
-      'review-card':      '/review',
-      'rules-card':       '/rules',
-      'settings-card':    '/settings',
-      'paycheck-card':    '/paycheck',
-      'apple-card-card':  '/apple-card',
-    }
+    function fmt(n) { return '$' + Math.abs(n).toLocaleString('en-US', { minimumFractionDigits: 0, maximumFractionDigits: 0 }) }
 
-    function getToken() {
-      return sessionStorage.getItem('ab_authed') === '1'
-    }
-
-    function setTokenUI(authed) {
-      const dot = document.getElementById('token-dot')
-      const label = document.getElementById('token-pill-label')
-      if (authed) {
-        dot.classList.remove('unset')
-        label.textContent = 'authenticated'
-        document.getElementById('token-gate').style.display = 'none'
-        document.getElementById('nav-grid').style.display = 'grid'
-        Object.entries(PAGES).forEach(([id, path]) => {
-          document.getElementById(id).href = path
-        })
+    function showDashboard(stats) {
+      document.getElementById('s-networth').textContent = fmt(stats.netWorth)
+      const delta = stats.netWorthDelta
+      const deltaEl = document.getElementById('s-networth-delta')
+      const networthEl = document.getElementById('s-networth')
+      if (delta !== 0) {
+        deltaEl.textContent = (delta >= 0 ? '↑ ' : '↓ ') + fmt(delta) + ' this mo'
+        networthEl.classList.toggle('positive', delta >= 0)
+        networthEl.classList.toggle('negative', delta < 0)
       } else {
-        dot.classList.add('unset')
-        label.textContent = 'not authenticated'
-        document.getElementById('token-gate').style.display = 'block'
-        document.getElementById('nav-grid').style.display = 'none'
+        deltaEl.textContent = '—'
       }
+      document.getElementById('s-cc').textContent = fmt(stats.ccBalance)
+      document.getElementById('s-cc-sub').textContent = `across ${stats.ccCardCount} card${stats.ccCardCount !== 1 ? 's' : ''}`
+      document.getElementById('s-debt').textContent = fmt(stats.totalDebt)
+      const savingsEl = document.getElementById('s-savings')
+      savingsEl.textContent = (stats.savingsThisMonth >= 0 ? '' : '-') + fmt(stats.savingsThisMonth)
+      savingsEl.classList.toggle('positive', stats.savingsThisMonth >= 0)
+      savingsEl.classList.toggle('negative', stats.savingsThisMonth < 0)
+      const reviewEl = document.getElementById('s-review')
+      reviewEl.textContent = stats.pendingReviews
+      reviewEl.classList.toggle('alert', stats.pendingReviews > 0)
+
+      // Badge on review card
+      const reviewCard = document.getElementById('nc-review')
+      if (stats.pendingReviews > 0) {
+        if (!reviewCard.querySelector('.card-badge')) {
+          const badge = document.createElement('div')
+          badge.className = 'card-badge'
+          badge.textContent = `${stats.pendingReviews} pending`
+          reviewCard.appendChild(badge)
+        }
+      }
+
+      document.getElementById('stats-band').classList.remove('locked')
+      document.getElementById('login-prompt').style.display = 'none'
+      document.getElementById('nav-grid').classList.add('visible')
+      document.getElementById('auth-dot').classList.add('authed')
+      document.getElementById('auth-label').textContent = 'authenticated · sign out'
     }
 
-    async function submitToken() {
-      const input = document.getElementById('token-input')
-      const secret = input.value.trim()
+    async function login() {
+      const secret = document.getElementById('secret-input').value.trim()
       if (!secret) return
+      const btn = document.getElementById('unlock-btn')
+      btn.disabled = true
       const res = await fetch('/auth', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ secret }),
       })
       if (res.status === 403) {
-        document.getElementById('token-error').textContent = 'Incorrect secret.'
+        document.getElementById('login-error').textContent = 'Incorrect secret.'
+        btn.disabled = false
         return
       }
-      document.getElementById('token-error').textContent = ''
+      document.getElementById('login-error').textContent = ''
       sessionStorage.setItem('ab_authed', '1')
-      setTokenUI(true)
+      const stats = await fetch('/home/stats').then(r => r.json())
+      showDashboard(stats)
+      btn.disabled = false
     }
 
-    async function clearToken() {
+    async function handleAuthBadge(e) {
+      if (!sessionStorage.getItem('ab_authed')) return
+      e.preventDefault()
       sessionStorage.removeItem('ab_authed')
       await fetch('/auth/logout')
     }
 
-    document.getElementById('token-input').addEventListener('keydown', e => {
-      if (e.key === 'Enter') submitToken()
+    document.getElementById('secret-input').addEventListener('keydown', e => {
+      if (e.key === 'Enter') login()
     })
 
-    // Init — verify cookie is still valid on load
     async function init() {
-      if (!getToken()) { setTokenUI(false); return }
-      const res = await fetch('/paycheck/data')
-      if (res.status === 403) { sessionStorage.removeItem('ab_authed'); setTokenUI(false) }
-      else setTokenUI(true)
+      if (!sessionStorage.getItem('ab_authed')) return
+      const res = await fetch('/home/stats')
+      if (res.status === 403) { sessionStorage.removeItem('ab_authed'); return }
+      const stats = await res.json()
+      showDashboard(stats)
     }
     init()
   </script>
