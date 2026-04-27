@@ -19,9 +19,7 @@ function checkSetupToken(req: FastifyRequest, reply: FastifyReply): boolean {
   return true
 }
 
-export async function linkHandler(req: FastifyRequest, reply: FastifyReply) {
-  if (!checkSetupToken(req, reply)) return
-
+async function createLinkToken() {
   const response = await plaidClient.linkTokenCreate({
     user: { client_user_id: 'ro' },
     client_name: 'AutoBudget',
@@ -29,13 +27,23 @@ export async function linkHandler(req: FastifyRequest, reply: FastifyReply) {
     country_codes: [CountryCode.Us],
     language: 'en',
     webhook: process.env.PLAID_WEBHOOK_URL!,
-    redirect_uri: process.env.PLAID_REDIRECT_URI,
+    ...(process.env.PLAID_REDIRECT_URI ? { redirect_uri: process.env.PLAID_REDIRECT_URI } : {}),
   })
+  return response.data.link_token
+}
 
+export async function linkHandler(req: FastifyRequest, reply: FastifyReply) {
+  if (!checkSetupToken(req, reply)) return
+  const token = await createLinkToken()
   const html = readFileSync(join(__dirname, '../../public/link.html'), 'utf8')
-    .replace('__LINK_TOKEN__', response.data.link_token)
-
+    .replace('__LINK_TOKEN__', token)
   await reply.type('text/html').send(html)
+}
+
+export async function linkTokenHandler(req: FastifyRequest, reply: FastifyReply) {
+  if (!checkSetupToken(req, reply)) return
+  const link_token = await createLinkToken()
+  await reply.send({ link_token })
 }
 
 export async function linkExchangeHandler(req: FastifyRequest, reply: FastifyReply) {

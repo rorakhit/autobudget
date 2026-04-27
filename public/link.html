@@ -7,7 +7,10 @@
     body { font-family: system-ui, sans-serif; max-width: 480px; margin: 80px auto; padding: 0 20px; }
     h1 { font-size: 1.4rem; }
     button { background: #1a1a1a; color: white; border: none; padding: 12px 24px; border-radius: 6px; font-size: 1rem; cursor: pointer; }
+    button:disabled { opacity: 0.5; cursor: default; }
     #status { margin-top: 16px; color: #666; }
+    #connected { margin-top: 16px; }
+    #connected li { margin: 4px 0; color: #333; }
   </style>
 </head>
 <body>
@@ -15,38 +18,70 @@
   <p>Click below to connect your bank accounts, credit cards, and payment apps.</p>
   <button id="launch">Connect Account</button>
   <div id="status"></div>
+  <ul id="connected"></ul>
   <script src="https://cdn.plaid.com/link/v2/stable/link-initialize.js"></script>
   <script>
-    const token = '__LINK_TOKEN__'
     const urlToken = new URLSearchParams(location.search).get('token')
     const status = document.getElementById('status')
+    const btn = document.getElementById('launch')
+    const connectedList = document.getElementById('connected')
 
-    localStorage.setItem('plaid_link_token', token)
+    async function openLink() {
+      btn.disabled = true
+      status.textContent = 'Loading…'
 
-    const handler = Plaid.create({
-      token,
-      onSuccess(publicToken, metadata) {
-        status.textContent = `Connecting ${metadata.institution.name}…`
-        fetch(`/link/exchange?token=${urlToken}`, {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({
-            public_token: publicToken,
-            institution_id: metadata.institution.institution_id,
-            institution_name: metadata.institution.name,
-            accounts: metadata.accounts,
-          }),
-        })
-          .then(r => r.json())
-          .then(d => { status.textContent = `✅ Connected ${d.institution} (${d.accounts} accounts). Syncing transactions in background…` })
-          .catch(() => { status.textContent = '❌ Error connecting account.' })
-      },
-      onExit(err) {
-        if (err) status.textContent = `Error: ${err.display_message ?? err.error_message}`
-      },
-    })
+      let linkToken
+      try {
+        const res = await fetch(`/link/token?token=${urlToken}`)
+        if (!res.ok) throw new Error('Failed to get link token')
+        linkToken = (await res.json()).link_token
+      } catch {
+        status.textContent = '❌ Could not start Plaid Link.'
+        btn.disabled = false
+        return
+      }
 
-    document.getElementById('launch').addEventListener('click', () => handler.open())
+      localStorage.setItem('plaid_link_token', linkToken)
+      status.textContent = ''
+
+      const handler = Plaid.create({
+        token: linkToken,
+        onSuccess(publicToken, metadata) {
+          status.textContent = `Connecting ${metadata.institution.name}…`
+          fetch(`/link/exchange?token=${urlToken}`, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({
+              public_token: publicToken,
+              institution_id: metadata.institution.institution_id,
+              institution_name: metadata.institution.name,
+              accounts: metadata.accounts,
+            }),
+          })
+            .then(r => r.json())
+            .then(d => {
+              const li = document.createElement('li')
+              li.textContent = `✅ ${d.institution} (${d.accounts} accounts) — syncing in background`
+              connectedList.appendChild(li)
+              status.textContent = ''
+              btn.textContent = 'Connect Another Account'
+              btn.disabled = false
+            })
+            .catch(() => {
+              status.textContent = '❌ Error connecting account.'
+              btn.disabled = false
+            })
+        },
+        onExit(err) {
+          if (err) status.textContent = `Error: ${err.display_message ?? err.error_message}`
+          btn.disabled = false
+        },
+      })
+
+      handler.open()
+    }
+
+    btn.addEventListener('click', openLink)
   </script>
 </body>
 </html>
