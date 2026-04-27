@@ -52,7 +52,17 @@ export async function linkedAccountsHandler(req: FastifyRequest, reply: FastifyR
     .from('plaid_items')
     .select('id, institution_name, accounts(name, type, subtype, mask)')
     .order('created_at', { ascending: true })
-  await reply.send(items ?? [])
+
+  // Group multiple items at the same institution into one entry
+  const grouped: Record<string, { institution_name: string; accounts: unknown[] }> = {}
+  for (const item of items ?? []) {
+    if (!grouped[item.institution_name]) {
+      grouped[item.institution_name] = { institution_name: item.institution_name, accounts: [] }
+    }
+    grouped[item.institution_name].accounts.push(...((item.accounts as unknown[]) ?? []))
+  }
+
+  await reply.send(Object.values(grouped))
 }
 
 export async function repairWebhooksHandler(req: FastifyRequest, reply: FastifyReply) {
