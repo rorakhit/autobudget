@@ -50,7 +50,7 @@ export async function linkExchangeHandler(req: FastifyRequest, reply: FastifyRep
   if (!checkSetupToken(req, reply)) return
 
   const { public_token, institution_id, institution_name, accounts } =
-    req.body as {
+    ((req.body as any)._parsed ?? req.body) as {
       public_token: string
       institution_id: string
       institution_name: string
