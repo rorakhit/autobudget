@@ -55,6 +55,47 @@ export async function linkedAccountsHandler(req: FastifyRequest, reply: FastifyR
   await reply.send(items ?? [])
 }
 
+export async function repairWebhooksHandler(req: FastifyRequest, reply: FastifyReply) {
+  if (!checkSetupToken(req, reply)) return
+
+  const webhookUrl = process.env.PLAID_WEBHOOK_URL
+  if (!webhookUrl) return reply.code(400).send({ error: 'PLAID_WEBHOOK_URL not set' })
+
+  const { data: items } = await db.from('plaid_items').select('id, plaid_item_id, access_token, institution_name')
+  if (!items?.length) return reply.send({ updated: [] })
+
+  const results = await Promise.all(items.map(async item => {
+    try {
+      await plaidClient.itemWebhookUpdate({ access_token: item.access_token, webhook: webhookUrl })
+      return { institution: item.institution_name, ok: true }
+    } catch (err: any) {
+      return { institution: item.institution_name, ok: false, error: err?.message }
+    }
+  }))
+
+  await reply.send({ updated: results })
+}
+
+export async function syncAllHandler(req: FastifyRequest, reply: FastifyReply) {
+  if (!checkSetupToken(req, reply)) return
+
+  const { data: items } = await db.from('plaid_items').select('id, institution_name')
+  if (!items?.length) return reply.send({ results: [] })
+
+  await reply.send({ started: items.map(i => i.institution_name) })
+
+  setImmediate(async () => {
+    for (const item of items) {
+      try {
+        const stats = await syncTransactions(item.id)
+        console.log(`Sync complete for ${item.institution_name}:`, stats)
+      } catch (err) {
+        console.error(`Sync failed for ${item.institution_name}:`, err)
+      }
+    }
+  })
+}
+
 export async function linkExchangeHandler(req: FastifyRequest, reply: FastifyReply) {
   if (!checkSetupToken(req, reply)) return
 

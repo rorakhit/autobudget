@@ -5,7 +5,7 @@ import formbody from '@fastify/formbody'
 import { dirname, join } from 'path'
 import { fileURLToPath } from 'url'
 import { webhookHandler } from './plaid/webhook.js'
-import { linkHandler, linkTokenHandler, linkedAccountsHandler, linkExchangeHandler, oauthReturnHandler, setupGetHandler, setupPostHandler } from './plaid/link.js'
+import { linkHandler, linkTokenHandler, linkedAccountsHandler, linkExchangeHandler, oauthReturnHandler, repairWebhooksHandler, syncAllHandler, setupGetHandler, setupPostHandler } from './plaid/link.js'
 import { startCronJobs } from './reports/cron.js'
 
 const __dirname = dirname(fileURLToPath(import.meta.url))
@@ -37,6 +37,8 @@ app.post('/webhook', webhookHandler)
 app.get('/link', linkHandler)
 app.get('/link/token', linkTokenHandler)
 app.get('/link/accounts', linkedAccountsHandler)
+app.post('/link/repair-webhooks', repairWebhooksHandler)
+app.post('/link/sync-all', syncAllHandler)
 app.post('/link/exchange', linkExchangeHandler)
 app.get('/oauth-return', oauthReturnHandler)
 app.get('/setup', setupGetHandler)
