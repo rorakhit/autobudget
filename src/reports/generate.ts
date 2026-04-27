@@ -139,6 +139,61 @@ Be concrete. Factor in credit obligations. No preamble.`
   return message.content[0].type === 'text' ? message.content[0].text : ''
 }
 
+async function getPaycheckAllocation(paycheckAmount: number, agg: PeriodAggregates): Promise<string> {
+  const { data: goalRow } = await db
+    .from('savings_goals')
+    .select('target_type, target_value')
+    .order('created_at', { ascending: false })
+    .limit(1)
+    .single()
+
+  const savingsGoalDesc = goalRow
+    ? goalRow.target_type === 'percentage'
+      ? `${goalRow.target_value}% of paycheck ($${(paycheckAmount * goalRow.target_value / 100).toFixed(2)})`
+      : `$${Number(goalRow.target_value).toFixed(2)} fixed per paycheck`
+    : '$100/month'
+
+  const upcomingRecurring = agg.activeRecurringCharges
+    .map(r => `  ${r.merchant_name}: ~$${Number(r.average_amount).toFixed(2)}`)
+    .join('\n') || '  None tracked'
+
+  const creditLines = agg.creditSummary.cards
+    .map(c => `  ${c.name}: $${c.balance.toFixed(2)} balance / $${c.limit.toFixed(2)} limit (${c.utilization}% util, ${c.apr}% APR, $${c.monthlyInterest.toFixed(2)}/mo interest)`)
+    .join('\n') || '  None'
+
+  const prompt = `You are a personal finance advisor helping someone allocate their paycheck.
+
+Paycheck amount: $${paycheckAmount.toFixed(2)}
+
+Savings goal: ${savingsGoalDesc}
+
+Credit card balances:
+${creditLines}
+
+Upcoming recurring charges (next ~2 weeks):
+${upcomingRecurring}
+
+Average daily spend last period: $${(agg.totalSpend / 14).toFixed(2)}/day
+
+Suggest a specific dollar allocation for this paycheck. Format your response as a short list:
+- Savings: $X — [one-line reason]
+- [Card name] payment: $X — [one-line reason, e.g. "brings utilization to Y%"]
+- [repeat for each card with a balance]
+- Buffer for recurring bills: $X
+- Remaining spending money: $X
+
+After the list, one sentence on the single most important financial move this period.
+Use exact dollar amounts. Be direct. No preamble.`
+
+  const message = await anthropic.messages.create({
+    model: 'claude-haiku-4-5-20251001',
+    max_tokens: 400,
+    messages: [{ role: 'user', content: prompt }],
+  })
+
+  return message.content[0].type === 'text' ? message.content[0].text : ''
+}
+
 export async function handlePaycheckDetected(tx: Transaction): Promise<void> {
   const { data: lastEvent } = await db
     .from('savings_events')
@@ -172,15 +227,18 @@ export async function handlePaycheckDetected(tx: Transaction): Promise<void> {
   }
 
   const agg = await getAggregatesForPeriod(periodStart, periodEnd, 'biweekly')
-  const narrative = await generateNarrative(agg, 'biweekly')
-  const savingsRec = await getSavingsRecommendation(tx.amount, agg)
+  const [narrative, savingsRec, allocation] = await Promise.all([
+    generateNarrative(agg, 'biweekly'),
+    getSavingsRecommendation(tx.amount, agg),
+    getPaycheckAllocation(tx.amount, agg),
+  ])
 
   await db.from('insights').insert({
     period_start: periodStart,
     period_end: periodEnd,
     period_type: 'biweekly',
     raw_analysis: narrative,
-    key_findings: { savings_recommendation: savingsRec },
+    key_findings: { savings_recommendation: savingsRec, paycheck_allocation: allocation },
   })
 
   await db.from('savings_events').insert({
@@ -235,6 +293,9 @@ export async function handlePaycheckDetected(tx: Transaction): Promise<void> {
     `  Total spend: $${agg.totalSpend.toFixed(2)}`,
     `  Top categories: ${topCategories}`,
     `  Credit utilization: ${agg.creditSummary.totalUtilization}%`,
+    '',
+    `How to allocate this paycheck:`,
+    allocation,
     '',
     `Savings recommendation:`,
     savingsRec,
