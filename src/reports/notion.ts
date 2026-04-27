@@ -283,6 +283,28 @@ export async function updateNotionDashboards(agg: PeriodAggregates): Promise<voi
   }
 }
 
+export async function writeRecentTransactions(): Promise<void> {
+  const { db } = await import('../db/client.js')
+  const { data } = await db
+    .from('transactions')
+    .select('merchant_name, amount, date, category, category_confidence, is_income, flagged_for_review, accounts(name, mask)')
+    .order('date', { ascending: false })
+    .limit(100)
+
+  const pageId = await getOrCreatePage('recent_transactions', '🔍 Recent Transactions', ROOT_PAGE_ID)
+
+  const blocks = (data ?? []).map(tx => {
+    const account = (tx.accounts as any)
+    const acctLabel = account ? `${account.name}${account.mask ? ' ···' + account.mask : ''}` : ''
+    const flag = tx.flagged_for_review ? ' 🚩' : ''
+    const income = tx.is_income ? ' ↓ income' : ''
+    const conf = tx.is_income ? '' : ` (${tx.category_confidence}%)`
+    return bullet(`${tx.date} | ${tx.merchant_name} | $${Number(tx.amount).toFixed(2)} | ${tx.category}${conf}${income}${flag} | ${acctLabel}`)
+  })
+
+  await replacePageContent(pageId, blocks.length ? blocks : [bullet('No transactions yet.')])
+}
+
 export async function writeFlaggedTransactions(): Promise<void> {
   const { data } = await import('../db/client.js').then(m =>
     m.db.from('transactions')
