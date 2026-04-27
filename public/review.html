@@ -30,6 +30,8 @@
     button.save:hover { background: #4f46e5; }
     button.save.visible { display: inline-block; }
     button.saved { background: #10b981; }
+    button.confirm-merchant { padding: 5px 12px; background: #f0fdf4; color: #16a34a; border: 1px solid #bbf7d0; border-radius: 5px; font-size: 0.85rem; cursor: pointer; }
+    button.confirm-merchant:hover { background: #dcfce7; }
     #save-all { padding: 9px 20px; background: #1a1a1a; color: white; border: none; border-radius: 6px; font-size: 0.9rem; cursor: pointer; }
     #save-all:disabled { opacity: 0.4; cursor: default; }
     #save-all:hover:not(:disabled) { background: #333; }
@@ -51,6 +53,8 @@
     button.tx-save { padding: 4px 12px; background: #6366f1; color: white; border: none; border-radius: 5px; font-size: 0.8rem; cursor: pointer; }
     button.tx-save:disabled { opacity: 0.5; cursor: default; }
     button.tx-save:hover:not(:disabled) { background: #4f46e5; }
+    button.tx-confirm { padding: 4px 10px; background: #f0fdf4; color: #16a34a; border: 1px solid #bbf7d0; border-radius: 5px; font-size: 0.8rem; cursor: pointer; }
+    button.tx-confirm:hover { background: #dcfce7; }
     .tx-saved-label { font-size: 0.8rem; color: #10b981; font-weight: 600; }
   </style>
 </head>
@@ -150,7 +154,10 @@
           <td>$${avg}</td>
           <td><span class="confidence ${confClass(m.minConfidence)}">${m.minConfidence}%</span></td>
           <td><select class="cat-select ${isChanged ? 'changed' : ''}" data-original="${m.category}">${categoryOpts(currentCat)}</select></td>
-          <td><button class="save ${isChanged ? 'visible' : ''}" data-merchant="${merchantKey(m.merchant)}">Save all</button></td>
+          <td style="white-space:nowrap">
+            <button class="save ${isChanged ? 'visible' : ''}" data-merchant="${merchantKey(m.merchant)}">Save all</button>
+            ${m.minConfidence < 80 ? `<button class="confirm-merchant" data-merchant="${merchantKey(m.merchant)}" title="Mark all as correctly categorized">✓ Confirm all</button>` : ''}
+          </td>
         </tr>`)
 
         if (isExpanded) {
@@ -172,6 +179,7 @@
                 <td>
                   <div class="tx-actions">
                     <button class="tx-save" data-tx-id="${tx.id}" style="display:none">Save</button>
+                    ${tx.confidence < 80 ? `<button class="tx-confirm" data-tx-id="${tx.id}">✓ Confirm</button>` : ''}
                   </div>
                 </td>
               </tr>`)
@@ -262,6 +270,45 @@
           e.target.disabled = false
         }
         updatePending()
+        return
+      }
+
+      // Merchant-level confirm
+      if (e.target.classList.contains('confirm-merchant')) {
+        const merchant = e.target.dataset.merchant
+        e.target.disabled = true
+        try {
+          await fetch(`/review/confirm-merchant?token=${urlToken}`, {
+            method: 'POST', headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ merchant_name: merchant }),
+          }).then(r => { if (!r.ok) throw new Error() })
+          const m = allMerchants.find(x => x.merchant === merchant)
+          if (m) {
+            m.minConfidence = 100
+            if (m._transactions) m._transactions.forEach(tx => { tx.confidence = 100 })
+          }
+          setTimeout(() => render(), 400)
+        } catch { statusEl.textContent = `❌ Failed to confirm ${merchant}`; e.target.disabled = false }
+        return
+      }
+
+      // Per-transaction confirm
+      if (e.target.classList.contains('tx-confirm')) {
+        const txId = e.target.dataset.txId
+        e.target.disabled = true
+        try {
+          await fetch(`/review/confirm-transaction?token=${urlToken}`, {
+            method: 'POST', headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ plaid_transaction_id: txId }),
+          }).then(r => { if (!r.ok) throw new Error() })
+          for (const m of allMerchants) {
+            const tx = (m._transactions ?? []).find(t => t.id === txId)
+            if (tx) tx.confidence = 100
+          }
+          const actions = e.target.closest('.tx-actions')
+          e.target.replaceWith(Object.assign(document.createElement('span'), { className: 'tx-saved-label', textContent: '✓ confirmed' }))
+          setTimeout(() => actions.querySelector('.tx-saved-label')?.remove(), 2000)
+        } catch { statusEl.textContent = `❌ Failed to confirm transaction`; e.target.disabled = false }
         return
       }
 

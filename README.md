@@ -152,7 +152,7 @@ All pages require `?token=<SETUP_SECRET>`.
 |------|---------|
 | `/link` | Connect bank accounts via Plaid Link |
 | `/setup` | Enter credit card APRs and savings goal |
-| `/review` | Review and correct transaction categories |
+| `/review` | Review and correct transaction categories; confirm correctly-guessed ones |
 | `/rules` | Manage categorization rules (run before Claude) |
 
 ## Debugging Endpoints

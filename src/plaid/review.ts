@@ -145,3 +145,38 @@ export async function correctTransactionHandler(req: FastifyRequest, reply: Fast
   if (error) return reply.code(500).send({ error: error.message })
   await reply.send({ ok: true })
 }
+
+export async function confirmTransactionHandler(req: FastifyRequest, reply: FastifyReply) {
+  if (!checkSetupToken(req, reply)) return
+
+  const { plaid_transaction_id } =
+    ((req.body as any)._parsed ?? req.body) as { plaid_transaction_id: string }
+
+  if (!plaid_transaction_id) return reply.code(400).send({ error: 'plaid_transaction_id required' })
+
+  const { error } = await db
+    .from('transactions')
+    .update({ category_confidence: 100, flagged_for_review: false })
+    .eq('plaid_transaction_id', plaid_transaction_id)
+
+  if (error) return reply.code(500).send({ error: error.message })
+  await reply.send({ ok: true })
+}
+
+export async function confirmMerchantHandler(req: FastifyRequest, reply: FastifyReply) {
+  if (!checkSetupToken(req, reply)) return
+
+  const { merchant_name } =
+    ((req.body as any)._parsed ?? req.body) as { merchant_name: string }
+
+  if (!merchant_name) return reply.code(400).send({ error: 'merchant_name required' })
+
+  const { error, count } = await db
+    .from('transactions')
+    .update({ category_confidence: 100, flagged_for_review: false })
+    .eq('merchant_name', merchant_name)
+    .lt('category_confidence', 100)
+
+  if (error) return reply.code(500).send({ error: error.message })
+  await reply.send({ ok: true, confirmed: count })
+}
