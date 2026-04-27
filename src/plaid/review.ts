@@ -1,6 +1,6 @@
 import type { FastifyRequest, FastifyReply } from 'fastify'
 import { db } from '../db/client.js'
-import { CATEGORIES } from '../types.js'
+import { getAllCategories } from '../db/categories.js'
 import { readFileSync } from 'fs'
 import { fileURLToPath } from 'url'
 import { dirname, join } from 'path'
@@ -72,7 +72,7 @@ export async function reviewTransactionsHandler(req: FastifyRequest, reply: Fast
   const result = Array.from(merchantMap.values())
     .sort((a, b) => a.minConfidence - b.minConfidence || b.count - a.count)
 
-  await reply.send({ merchants: result, categories: CATEGORIES })
+  await reply.send({ merchants: result, categories: await getAllCategories() })
 }
 
 export async function reviewCorrectHandler(req: FastifyRequest, reply: FastifyReply) {
@@ -85,7 +85,7 @@ export async function reviewCorrectHandler(req: FastifyRequest, reply: FastifyRe
     return reply.code(400).send({ error: 'merchant_name and category required' })
   }
 
-  if (!(CATEGORIES as readonly string[]).includes(category)) {
+  if (!(await getAllCategories()).includes(category)) {
     return reply.code(400).send({ error: 'Invalid category' })
   }
 
@@ -133,7 +133,7 @@ export async function correctTransactionHandler(req: FastifyRequest, reply: Fast
   if (!plaid_transaction_id || !category) {
     return reply.code(400).send({ error: 'plaid_transaction_id and category are required' })
   }
-  if (!(CATEGORIES as readonly string[]).includes(category)) {
+  if (!(await getAllCategories()).includes(category)) {
     return reply.code(400).send({ error: 'Invalid category' })
   }
 

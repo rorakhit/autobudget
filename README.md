@@ -75,6 +75,7 @@ Run the migrations in order in the Supabase SQL editor:
 src/db/migrations/001_initial.sql
 src/db/migrations/002_rls.sql
 src/db/migrations/003_categorization_rules.sql
+src/db/migrations/004_custom_categories_display_name.sql
 ```
 
 ### 3. Environment Variables
@@ -154,6 +155,7 @@ All pages require `?token=<SETUP_SECRET>`.
 | `/setup` | Enter credit card APRs and savings goal |
 | `/review` | Review and correct transaction categories; confirm correctly-guessed ones |
 | `/rules` | Manage categorization rules (run before Claude) |
+| `/settings` | Rename accounts, add/delete custom categories |
 
 ## Debugging Endpoints
 

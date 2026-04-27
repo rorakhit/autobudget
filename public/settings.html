@@ -1,0 +1,198 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <title>AutoBudget — Settings</title>
+  <style>
+    * { box-sizing: border-box; }
+    body { font-family: system-ui, sans-serif; max-width: 720px; margin: 40px auto; padding: 0 20px; color: #111; }
+    h1 { font-size: 1.4rem; margin-bottom: 4px; }
+    .subtitle { color: #666; font-size: 0.9rem; margin-bottom: 36px; }
+    section { margin-bottom: 48px; }
+    h2 { font-size: 1.05rem; font-weight: 600; margin: 0 0 4px; }
+    .section-sub { color: #777; font-size: 0.85rem; margin: 0 0 20px; }
+
+    /* Account rename */
+    .rename-form { display: flex; gap: 10px; align-items: flex-end; flex-wrap: wrap; }
+    .form-group { display: flex; flex-direction: column; gap: 4px; }
+    .form-group label { font-size: 0.78rem; font-weight: 600; color: #555; text-transform: uppercase; letter-spacing: 0.04em; }
+    select, input[type="text"] { padding: 8px 10px; border: 1px solid #ddd; border-radius: 6px; font-size: 0.9rem; background: white; }
+    select:focus, input:focus { outline: none; border-color: #6366f1; }
+    #account-select { min-width: 280px; }
+    #display-name { width: 200px; }
+    button.primary { padding: 8px 20px; background: #6366f1; color: white; border: none; border-radius: 6px; font-size: 0.9rem; cursor: pointer; white-space: nowrap; }
+    button.primary:hover { background: #4f46e5; }
+    button.primary:disabled { opacity: 0.4; cursor: default; }
+    .status-msg { font-size: 0.85rem; margin-top: 10px; min-height: 18px; }
+
+    /* Categories */
+    .categories-grid { display: flex; flex-wrap: wrap; gap: 8px; margin-bottom: 20px; }
+    .cat-chip {
+      display: inline-flex; align-items: center; gap: 6px;
+      padding: 5px 12px; border-radius: 99px; font-size: 0.85rem;
+    }
+    .cat-chip.system { background: #f0f0f0; color: #444; }
+    .cat-chip.custom { background: #eef2ff; color: #4338ca; }
+    .cat-chip button {
+      background: none; border: none; cursor: pointer; padding: 0;
+      font-size: 0.9rem; color: #a5b4fc; line-height: 1;
+    }
+    .cat-chip button:hover { color: #dc2626; }
+    .add-category { display: flex; gap: 8px; align-items: center; }
+    #new-cat-input { width: 200px; }
+    #add-cat-btn { padding: 8px 16px; }
+  </style>
+</head>
+<body>
+  <h1>AutoBudget — Settings</h1>
+  <p class="subtitle">Manage account names and transaction categories.</p>
+
+  <!-- Account Rename -->
+  <section>
+    <h2>Rename Account</h2>
+    <p class="section-sub">Chase and other banks often return generic names like "CREDIT CARD". Set a friendly name here.</p>
+    <div class="rename-form">
+      <div class="form-group">
+        <label>Account</label>
+        <select id="account-select"><option value="">Loading…</option></select>
+      </div>
+      <div class="form-group">
+        <label>New name</label>
+        <input type="text" id="display-name" placeholder="e.g. Chase Sapphire">
+      </div>
+      <button class="primary" id="rename-btn" disabled>Rename</button>
+    </div>
+    <div class="status-msg" id="rename-status"></div>
+  </section>
+
+  <!-- Categories -->
+  <section>
+    <h2>Categories</h2>
+    <p class="section-sub">System categories (grey) are built-in. Custom categories (purple) can be deleted.</p>
+    <div class="categories-grid" id="categories-grid">Loading…</div>
+    <div class="add-category">
+      <input type="text" id="new-cat-input" placeholder="New category name…" maxlength="40">
+      <button class="primary" id="add-cat-btn">Add category</button>
+    </div>
+    <div class="status-msg" id="cat-status"></div>
+  </section>
+
+  <script>
+    const urlToken = new URLSearchParams(location.search).get('token')
+    let accounts = []
+    let systemCategories = []
+    let customCategories = []
+
+    const accountSelect = document.getElementById('account-select')
+    const displayNameInput = document.getElementById('display-name')
+    const renameBtn = document.getElementById('rename-btn')
+    const renameStatus = document.getElementById('rename-status')
+    const categoriesGrid = document.getElementById('categories-grid')
+    const newCatInput = document.getElementById('new-cat-input')
+    const addCatBtn = document.getElementById('add-cat-btn')
+    const catStatus = document.getElementById('cat-status')
+
+    function renderAccounts() {
+      accountSelect.innerHTML = '<option value="">Select account…</option>' +
+        accounts.map(a => {
+          const inst = a.plaid_items?.institution_name ?? ''
+          const label = `${a.name}${a.mask ? ' ···' + a.mask : ''}${inst ? ' — ' + inst : ''}`
+          return `<option value="${a.id}">${label}</option>`
+        }).join('')
+      renameBtn.disabled = false
+    }
+
+    function renderCategories() {
+      categoriesGrid.innerHTML = [
+        ...systemCategories.map(c => `<span class="cat-chip system">${c}</span>`),
+        ...customCategories.map(c =>
+          `<span class="cat-chip custom">${c}<button data-cat="${c}" title="Delete">×</button></span>`
+        ),
+      ].join('')
+    }
+
+    accountSelect.addEventListener('change', () => {
+      const acct = accounts.find(a => a.id === accountSelect.value)
+      if (acct) displayNameInput.value = acct.name
+    })
+
+    renameBtn.addEventListener('click', async () => {
+      const account_id = accountSelect.value
+      const display_name = displayNameInput.value.trim()
+      if (!account_id || !display_name) return
+      renameBtn.disabled = true
+      renameStatus.textContent = 'Saving…'
+      try {
+        const res = await fetch(`/settings/rename-account?token=${urlToken}`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ account_id, display_name }),
+        })
+        if (!res.ok) throw new Error((await res.json()).error)
+        const acct = accounts.find(a => a.id === account_id)
+        if (acct) acct.name = display_name
+        renderAccounts()
+        accountSelect.value = account_id
+        renameStatus.textContent = '✅ Renamed successfully'
+        setTimeout(() => { renameStatus.textContent = '' }, 3000)
+      } catch (err) {
+        renameStatus.textContent = `❌ ${err.message}`
+      }
+      renameBtn.disabled = false
+    })
+
+    addCatBtn.addEventListener('click', async () => {
+      const name = newCatInput.value.trim()
+      if (!name) return
+      addCatBtn.disabled = true
+      catStatus.textContent = 'Adding…'
+      try {
+        const res = await fetch(`/settings/add-category?token=${urlToken}`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ name }),
+        })
+        if (!res.ok) throw new Error((await res.json()).error)
+        customCategories.push(name)
+        customCategories.sort()
+        newCatInput.value = ''
+        renderCategories()
+        catStatus.textContent = '✅ Category added'
+        setTimeout(() => { catStatus.textContent = '' }, 2000)
+      } catch (err) {
+        catStatus.textContent = `❌ ${err.message}`
+      }
+      addCatBtn.disabled = false
+    })
+
+    newCatInput.addEventListener('keydown', e => { if (e.key === 'Enter') addCatBtn.click() })
+
+    categoriesGrid.addEventListener('click', async e => {
+      if (!e.target.dataset.cat) return
+      const name = e.target.dataset.cat
+      if (!confirm(`Delete category "${name}"?`)) return
+      e.target.disabled = true
+      try {
+        const res = await fetch(`/settings/category/${encodeURIComponent(name)}?token=${urlToken}`, { method: 'DELETE' })
+        if (!res.ok) throw new Error((await res.json()).error)
+        customCategories = customCategories.filter(c => c !== name)
+        renderCategories()
+      } catch (err) {
+        catStatus.textContent = `❌ ${err.message}`
+        e.target.disabled = false
+      }
+    })
+
+    fetch(`/settings/data?token=${urlToken}`)
+      .then(r => r.json())
+      .then(data => {
+        accounts = data.accounts
+        systemCategories = data.systemCategories
+        customCategories = data.customCategories
+        renderAccounts()
+        renderCategories()
+      })
+      .catch(() => { renameStatus.textContent = '❌ Failed to load settings.' })
+  </script>
+</body>
+</html>

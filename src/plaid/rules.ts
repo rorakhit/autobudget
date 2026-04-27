@@ -1,6 +1,6 @@
 import type { FastifyRequest, FastifyReply } from 'fastify'
 import { db } from '../db/client.js'
-import { CATEGORIES } from '../types.js'
+import { getAllCategories } from '../db/categories.js'
 import { readFileSync } from 'fs'
 import { fileURLToPath } from 'url'
 import { dirname, join } from 'path'
@@ -29,7 +29,7 @@ export async function listRulesHandler(req: FastifyRequest, reply: FastifyReply)
     .select('*')
     .order('priority', { ascending: false })
     .order('created_at', { ascending: true })
-  await reply.send({ rules: data ?? [], categories: CATEGORIES })
+  await reply.send({ rules: data ?? [], categories: await getAllCategories() })
 }
 
 export async function createRuleHandler(req: FastifyRequest, reply: FastifyReply) {
@@ -48,7 +48,7 @@ export async function createRuleHandler(req: FastifyRequest, reply: FastifyReply
   if (!body.label || !body.category) {
     return reply.code(400).send({ error: 'label and category are required' })
   }
-  if (!(CATEGORIES as readonly string[]).includes(body.category)) {
+  if (!(await getAllCategories()).includes(body.category)) {
     return reply.code(400).send({ error: 'Invalid category' })
   }
 

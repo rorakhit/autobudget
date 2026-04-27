@@ -1,5 +1,6 @@
 import { anthropic } from './claude.js'
 import { CATEGORIES, type Category, type CategorizationResult } from '../types.js'
+import { getAllCategories } from '../db/categories.js'
 import { db } from '../db/client.js'
 
 interface HistoryEntry {
@@ -13,10 +14,11 @@ interface CategorizationInput {
   amount: number
   date: string
   history: HistoryEntry[]
+  allCategories: string[]
 }
 
 export function buildCategorizationPrompt(input: CategorizationInput): string {
-  const { merchantName, amount, date, history } = input
+  const { merchantName, amount, date, history, allCategories } = input
   const historyText = history.length > 0
     ? `Previous transactions at this merchant:\n${history.map(h => `  - ${h.date}: $${h.amount} → ${h.category}`).join('\n')}`
     : 'No previous transactions at this merchant.'
@@ -30,7 +32,7 @@ Transaction:
 
 ${historyText}
 
-Valid categories: ${CATEGORIES.join(', ')}
+Valid categories: ${allCategories.join(', ')}
 
 Rules:
 - Income: salary, direct deposit, ACH credit from employer
@@ -57,7 +59,7 @@ export function parseCategorizationResponse(raw: string): CategorizationResult {
     }
     const category: Category = (CATEGORIES as readonly string[]).includes(parsed.category)
       ? (parsed.category as Category)
-      : 'Other'
+      : (parsed.category as Category) // custom categories pass through as-is
     return {
       category,
       confidence: Math.min(100, Math.max(0, Math.round(parsed.confidence))),
@@ -94,8 +96,11 @@ export async function categorizeTransaction(
   amount: number,
   date: string
 ): Promise<CategorizationResult> {
-  const history = await getMerchantHistory(merchantName)
-  const prompt = buildCategorizationPrompt({ merchantName, amount, date, history })
+  const [history, allCategories] = await Promise.all([
+    getMerchantHistory(merchantName),
+    getAllCategories(),
+  ])
+  const prompt = buildCategorizationPrompt({ merchantName, amount, date, history, allCategories })
 
   const message = await anthropic.messages.create({
     model: 'claude-haiku-4-5-20251001',
