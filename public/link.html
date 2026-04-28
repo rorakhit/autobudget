@@ -5,7 +5,9 @@
   <link rel="icon" href="/public/icon.svg" type="image/svg+xml">
   <title>AutoBudget — Connect Accounts</title>
   <style>
-    body { font-family: system-ui, sans-serif; max-width: 480px; margin: 80px auto; padding: 0 20px; }
+    body { font-family: system-ui, sans-serif; max-width: 480px; margin: 40px auto; padding: 0 20px; }
+    .back-link { display: inline-flex; align-items: center; gap: 4px; font-size: 0.78rem; color: #6b7280; text-decoration: none; margin-bottom: 20px; }
+    .back-link:hover { color: #111; }
     h1 { font-size: 1.4rem; }
     button { background: #1a1a1a; color: white; border: none; padding: 12px 24px; border-radius: 6px; font-size: 1rem; cursor: pointer; }
     button:disabled { opacity: 0.5; cursor: default; }
@@ -20,6 +22,7 @@
   </style>
 </head>
 <body>
+  <a class="back-link" href="/">← Home</a>
   <h1>AutoBudget — Connect Bank Accounts</h1>
   <p>Click below to connect your bank accounts, credit cards, and payment apps.</p>
   <button id="launch">Connect Account</button>
