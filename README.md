@@ -33,6 +33,8 @@ Claude API categorizes transaction
 Monthly/yearly cron → Notion historical reports
 ```
 
+> **Paycheck webhook timing:** Plaid fires `SYNC_UPDATES_AVAILABLE` within 1–2 hours of a direct deposit for major banks, but can take 6–12 hours (standard polling cadence) or up to 24–48 hours for smaller banks and credit unions. If the paycheck email doesn't arrive, use the **Run report now** button on `/paycheck` to trigger it manually.
+
 ## Notion Dashboard
 
 Seven pages updated automatically:
@@ -167,6 +169,7 @@ All require `?token=<SETUP_SECRET>`.
 | `POST /link/sync-all` | Manually trigger a full transaction sync for all items |
 | `POST /link/refresh-notion` | Rewrite Flagged + Recent Transactions Notion pages from DB |
 | `GET /link/accounts` | List all linked institutions and accounts (JSON) |
+| `POST /paycheck/trigger-report` | Manually run the paycheck report (bypasses 5-day dedup guard) |
 | `GET /health` | Health check — returns `{ status: "ok" }` |
 
 ## Development
