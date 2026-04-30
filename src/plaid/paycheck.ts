@@ -1,6 +1,7 @@
 import { checkAuth, checkAuthPage } from '../auth.js'
 import type { FastifyRequest, FastifyReply } from 'fastify'
 import { db } from '../db/client.js'
+import { handlePaycheckDetected } from '../reports/generate.js'
 import { readFileSync } from 'fs'
 import { fileURLToPath } from 'url'
 import { dirname, join } from 'path'
@@ -49,6 +50,36 @@ export async function removeRecurringHandler(req: FastifyRequest, reply: Fastify
   const { error } = await db.from('recurring_charges').update({ is_active: false }).eq('id', id)
   if (error) return reply.code(500).send({ error: error.message })
   await reply.send({ ok: true })
+}
+
+export async function triggerPaycheckReportHandler(req: FastifyRequest, reply: FastifyReply) {
+  if (!checkAuth(req, reply)) return
+
+  const { data: paycheckAccounts } = await db
+    .from('accounts')
+    .select('id')
+    .eq('is_paycheck_account', true)
+
+  const paycheckAccountIds = (paycheckAccounts ?? []).map(a => a.id)
+  if (!paycheckAccountIds.length) return reply.code(400).send({ error: 'No paycheck account configured' })
+
+  const { data: tx } = await db
+    .from('transactions')
+    .select('*')
+    .in('account_id', paycheckAccountIds)
+    .eq('is_income', true)
+    .gte('amount', 500)
+    .order('date', { ascending: false })
+    .limit(1)
+    .single()
+
+  if (!tx) return reply.code(404).send({ error: 'No eligible paycheck deposit found' })
+
+  await reply.send({ ok: true, transaction: { amount: tx.amount, date: tx.date } })
+
+  setImmediate(async () => {
+    await handlePaycheckDetected(tx)
+  })
 }
 
 export async function updateRecurringAllocationHandler(req: FastifyRequest, reply: FastifyReply) {
