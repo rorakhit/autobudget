@@ -203,10 +203,22 @@ export async function getAggregatesForPeriod(
     category: t.category ?? 'Other',
   }))
 
-  const { data: recurringRaw } = await db
-    .from('recurring_charges')
-    .select('*')
-    .eq('is_active', true)
+  // Build recurring charges from manually-flagged transactions
+  const { data: recurringTxs } = await db
+    .from('transactions')
+    .select('merchant_name, amount, date, account_id')
+    .eq('is_recurring', true)
+    .eq('is_income', false)
+    .order('date', { ascending: false })
+
+  const recurringMap = new Map<string, { merchant_name: string; average_amount: number; last_seen: string; account_id: string | null }>()
+  for (const tx of recurringTxs ?? []) {
+    const key = tx.merchant_name ?? 'Unknown'
+    if (!recurringMap.has(key)) {
+      recurringMap.set(key, { merchant_name: key, average_amount: Number(tx.amount), last_seen: tx.date, account_id: tx.account_id })
+    }
+  }
+  const recurringRaw = Array.from(recurringMap.values())
 
   const { data: savingsEventsRaw } = await db
     .from('savings_events')
@@ -230,7 +242,7 @@ export async function getAggregatesForPeriod(
     savingsRate,
     categoryBreakdown,
     largestPurchases,
-    activeRecurringCharges: (recurringRaw ?? []) as RecurringCharge[],
+    activeRecurringCharges: recurringRaw as RecurringCharge[],
     creditSummary,
     loanSummary,
     savingsEvents: (savingsEventsRaw ?? []) as SavingsEvent[],

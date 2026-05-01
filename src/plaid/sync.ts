@@ -37,7 +37,6 @@ async function storeTransaction(tx: Transaction, accountId: string): Promise<voi
 
   let category = null
   let confidence = null
-  let isRecurring = false
   let flagged = false
 
   if (!isIncome) {
@@ -45,13 +44,11 @@ async function storeTransaction(tx: Transaction, accountId: string): Promise<voi
     if (ruleMatch) {
       category = ruleMatch
       confidence = 100
-      isRecurring = false
       flagged = false
     } else {
       const result = await categorizeTransaction(merchantName, amount, tx.date)
       category = result.category
       confidence = result.confidence
-      isRecurring = result.is_recurring
       flagged = result.confidence < 80
     }
   } else {
@@ -67,23 +64,12 @@ async function storeTransaction(tx: Transaction, accountId: string): Promise<voi
     date: tx.date,
     category,
     category_confidence: confidence,
-    is_recurring: isRecurring,
     is_income: isIncome,
     flagged_for_review: flagged,
     raw_plaid_data: tx as unknown as Record<string, unknown>,
   }, { onConflict: 'plaid_transaction_id' })
 
   if (error) throw error
-
-
-  if (isRecurring && merchantName) {
-    await db.from('recurring_charges').upsert({
-      merchant_name: merchantName,
-      average_amount: amount,
-      last_seen: tx.date,
-      account_id: accountId,
-    }, { onConflict: 'merchant_name' })
-  }
 }
 
 export async function syncTransactions(plaidItemId: string): Promise<{ added: number; modified: number; removed: number }> {

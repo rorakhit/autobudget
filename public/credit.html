@@ -21,6 +21,26 @@
     .credit-stat-label { font-size: 0.65rem; color: var(--muted); text-transform: uppercase; letter-spacing: 0.07em; margin-bottom: 3px; }
     .credit-stat-value { font-size: 0.95rem; font-weight: 700; }
 
+    .inline-edit-row {
+      display: flex; align-items: center; gap: 8px; margin-top: 12px;
+      padding-top: 12px; border-top: 1px solid var(--border);
+    }
+    .inline-edit-row label { font-size: 0.72rem; color: var(--muted); white-space: nowrap; }
+    .inline-input {
+      width: 90px; padding: 5px 8px; background: var(--bg2);
+      border: 1px solid var(--border2); border-radius: 5px;
+      color: var(--text); font-size: 0.85rem; font-weight: 600;
+    }
+    .inline-input:focus { outline: none; border-color: var(--accent); }
+    .inline-save-btn {
+      padding: 5px 12px; background: var(--accent); color: #000;
+      border: none; border-radius: 5px; font-size: 0.78rem; font-weight: 700;
+      cursor: pointer; margin-left: auto;
+    }
+    .inline-save-btn:hover { opacity: 0.85; }
+    .inline-save-btn:disabled { opacity: 0.4; cursor: default; }
+    .inline-status { font-size: 0.72rem; color: var(--green); }
+
     .loan-card {
       background: var(--bg1); border: 1px solid var(--border);
       border-radius: var(--radius); padding: 20px; margin-bottom: 10px;
@@ -42,13 +62,12 @@
     .trend-stable { background: rgba(200,255,0,0.12); color: var(--accent); }
     .trend-unknown { background: var(--bg2); color: var(--muted); }
 
+    /* Payoff calculator */
     .calc-box {
       background: var(--bg1); border: 1px solid var(--border);
       border-radius: var(--radius); padding: 20px; margin-bottom: 28px;
     }
-    .calc-input-row {
-      display: flex; align-items: center; gap: 12px; flex-wrap: wrap;
-    }
+    .calc-input-row { display: flex; align-items: center; gap: 12px; flex-wrap: wrap; }
     .calc-input-label { font-size: 0.82rem; color: var(--muted); white-space: nowrap; }
     .calc-input {
       width: 130px; padding: 8px 12px; background: var(--bg2);
@@ -86,16 +105,32 @@
       color: var(--text); font-size: 0.88rem; font-weight: 700;
     }
     .calc-min-input:focus { outline: none; border-color: var(--accent); }
+
+    /* Apple Card section */
+    .apple-section { display: grid; grid-template-columns: 1fr 1fr; gap: 16px; }
+    @media (max-width: 640px) { .apple-section { grid-template-columns: 1fr; } }
+    .drop-zone {
+      border: 2px dashed var(--border2); border-radius: var(--radius);
+      padding: 24px; text-align: center; cursor: pointer;
+      transition: border-color 0.15s, background 0.15s;
+      color: var(--muted); font-size: 0.85rem;
+    }
+    .drop-zone:hover, .drop-zone.drag-over { border-color: var(--accent); background: rgba(200,255,0,0.04); color: var(--text); }
+    .drop-zone .drop-icon { font-size: 1.8rem; margin-bottom: 8px; }
+    .result-bar { display: flex; gap: 16px; margin-top: 12px; font-size: 0.82rem; }
+    .result-bar .ok { color: var(--green); font-weight: 700; }
+    .result-bar .skip { color: var(--muted); }
+    .error-list { margin-top: 8px; font-size: 0.75rem; color: var(--red); }
   </style>
 </head>
 <body>
   <nav class="nav">
     <a class="nav-brand" href="/"><img src="/public/icon.png" alt="GhostPaper"> GhostPaper</a>
     <div class="nav-links">
-
       <a class="nav-link" href="/reports">Reports</a>
       <a class="nav-link" href="/spending">Spending</a>
       <a class="nav-link active" href="/credit">Credit</a>
+      <a class="nav-link" href="/accounts">Accounts</a>
     </div>
     <div class="nav-right"></div>
   </nav>
@@ -103,16 +138,17 @@
   <div class="page">
     <div class="page-title">
       <h1>Credit</h1>
-      <p>Utilization, interest costs, and payoff projections</p>
+      <p>Utilization, payoff calculator, and card management</p>
     </div>
 
-    <div class="stat-grid stat-grid-4 mb-16" id="cc-summary" style="margin-bottom:28px">
+    <div class="stat-grid stat-grid-4 mb-16" style="margin-bottom:28px">
       <div class="stat-cell"><span class="stat-label">Total balance</span><span class="stat-value mono" id="cc-total">—</span></div>
       <div class="stat-cell"><span class="stat-label">Total limit</span><span class="stat-value mono" id="cc-limit">—</span></div>
       <div class="stat-cell"><span class="stat-label">Utilization</span><span class="stat-value mono" id="cc-util">—</span></div>
       <div class="stat-cell"><span class="stat-label">Interest / mo</span><span class="stat-value mono" id="cc-interest">—</span></div>
     </div>
 
+    <!-- Payoff Calculator -->
     <section style="margin-bottom:28px">
       <div class="section-header"><span class="section-title">Payoff calculator</span></div>
       <div class="calc-box">
@@ -129,7 +165,8 @@
       </div>
     </section>
 
-    <section>
+    <!-- Credit Cards -->
+    <section style="margin-bottom:28px">
       <div class="section-header">
         <span class="section-title">Credit cards</span>
         <span id="cc-trend"></span>
@@ -137,9 +174,46 @@
       <div id="cc-cards"><div class="empty">Loading…</div></div>
     </section>
 
-    <section>
+    <!-- Loans -->
+    <section style="margin-bottom:28px">
       <div class="section-header"><span class="section-title">Loans</span></div>
       <div id="loan-cards"><div class="empty">Loading…</div></div>
+    </section>
+
+    <!-- Apple Card -->
+    <section>
+      <div class="section-header"><span class="section-title">Apple Card</span></div>
+      <div class="apple-section">
+        <div>
+          <div style="font-size:0.72rem;color:var(--muted);font-weight:700;text-transform:uppercase;letter-spacing:0.07em;margin-bottom:10px">Manual balance override</div>
+          <p style="font-size:0.82rem;color:var(--muted);margin-bottom:12px">Apple Card data is one month behind. Enter your current balance to keep the payoff calculator accurate.</p>
+          <div style="display:flex;align-items:center;gap:8px;flex-wrap:wrap">
+            <input id="apple-balance-input" type="number" min="0" step="0.01" placeholder="Current balance"
+              style="width:150px;padding:8px 12px;background:var(--bg2);border:1px solid var(--border2);border-radius:6px;color:var(--text);font-size:0.95rem;font-weight:700;">
+            <button onclick="saveAppleBalance()" style="padding:8px 16px;background:var(--accent);color:#000;border:none;border-radius:6px;font-size:0.82rem;font-weight:700;cursor:pointer">Save balance</button>
+            <span id="apple-balance-status" style="font-size:0.75rem;color:var(--green)"></span>
+          </div>
+          <div style="margin-top:8px;font-size:0.75rem;color:var(--muted)" id="apple-balance-hint"></div>
+        </div>
+        <div>
+          <div style="font-size:0.72rem;color:var(--muted);font-weight:700;text-transform:uppercase;letter-spacing:0.07em;margin-bottom:10px">Import CSV</div>
+          <div class="drop-zone" id="drop-zone" onclick="document.getElementById('csv-input').click()">
+            <div class="drop-icon">↑</div>
+            <div>Drop Apple Card CSV or click to browse</div>
+            <div style="font-size:0.75rem;margin-top:4px">Export from Wallet app → Apple Card → ··· → Export Transactions</div>
+          </div>
+          <input type="file" id="csv-input" accept=".csv" style="display:none">
+          <div style="margin-top:10px;display:flex;align-items:center;gap:8px;flex-wrap:wrap">
+            <button id="import-btn" onclick="importCSV()" disabled style="padding:7px 16px;background:var(--accent);color:#000;border:none;border-radius:6px;font-size:0.82rem;font-weight:700;cursor:pointer;opacity:0.4">Import</button>
+            <span id="import-status" style="font-size:0.82rem;color:var(--muted)"></span>
+          </div>
+          <div class="result-bar" id="result-bar" style="display:none">
+            <span class="ok" id="imported-count"></span>
+            <span class="skip" id="skipped-count"></span>
+          </div>
+          <div class="error-list" id="error-list"></div>
+        </div>
+      </div>
     </section>
   </div>
 
@@ -148,8 +222,6 @@
     const fmts = n => '$' + Math.abs(n).toLocaleString('en-US', { maximumFractionDigits: 0 })
 
     function utilColor(u) { return u >= 50 ? 'red' : u >= 30 ? 'orange' : 'green' }
-    function barColor(u) { return u >= 50 ? 'red' : u >= 30 ? 'orange' : 'green' }
-
     function trendChip(t) {
       const map = { growing: ['trend-growing','↑ Growing'], shrinking: ['trend-shrinking','↓ Shrinking'], stable: ['trend-stable','→ Stable'], unknown: ['trend-unknown','Unknown'] }
       const [cls, label] = map[t] ?? map.unknown
@@ -157,6 +229,8 @@
     }
 
     let ccData = []
+
+    // ── Payoff calculator ──────────────────────────────────────────────────────
 
     function payoffMonthsWithPayment(balance, apr, monthlyPayment) {
       if (balance <= 0) return 0
@@ -183,8 +257,7 @@
     function renderMinInputs() {
       const cards = ccData.filter(c => c.balance > 0).sort((a, b) => b.apr - a.apr)
       if (!cards.length) return
-      const container = document.getElementById('calc-min-inputs')
-      container.innerHTML = cards.map((c, i) => `
+      document.getElementById('calc-min-inputs').innerHTML = cards.map((c, i) => `
         <div class="calc-min-row">
           <span class="calc-min-label">${c.name}</span>
           <input class="calc-min-input" id="min-${i}" type="number" min="0" step="5" placeholder="min payment" oninput="runCalc()">
@@ -195,7 +268,6 @@
     function getCardMin(i, card) {
       const val = parseFloat(document.getElementById(`min-${i}`)?.value)
       if (!isNaN(val) && val > 0) return val
-      // fallback estimate if not entered
       const monthlyRate = card.apr / 100 / 12
       return Math.max(25, card.balance * 0.01 + card.balance * monthlyRate)
     }
@@ -210,37 +282,31 @@
       if (perPaycheck <= 0) { hint.textContent = ''; resultsEl.innerHTML = ''; return }
       hint.textContent = `= ${fmt(perMonth)} / month`
 
-      // Avalanche: sort by APR descending, allocate minimums first then extra to highest APR
       const cards = ccData.filter(c => c.balance > 0).sort((a, b) => b.apr - a.apr)
       if (!cards.length) { resultsEl.innerHTML = '<div style="color:var(--muted);font-size:0.82rem;padding:8px 0">No balances to pay off.</div>'; return }
 
       const mins = cards.map((c, i) => getCardMin(i, c))
       const totalMins = mins.reduce((s, m) => s + m, 0)
       const extra = Math.max(0, perMonth - totalMins)
-
-      // Allocate: each card gets its minimum, highest-APR card gets all extra
       const allocs = mins.map((m, i) => i === 0 ? m + extra : m)
 
-      // Per-card payoff simulation
       const rows = cards.map((c, i) => {
         const payment = allocs[i]
         const months = payoffMonthsWithPayment(c.balance, c.apr, payment)
         const interest = totalInterest(c.balance, c.apr, payment)
-        const perPaycheckAlloc = payment / 2
-        return { c, payment, perPaycheckAlloc, months, interest }
+        return { c, payment, perPaycheckAlloc: payment / 2, months, interest }
       })
 
       const totalInterestCost = rows.reduce((s, r) => s + r.interest, 0)
       const maxMonths = rows.reduce((s, r) => Math.max(s, r.months === Infinity ? 9999 : r.months), 0)
 
-      const colHeaders = `
-        <div class="calc-row" style="font-size:0.7rem;color:var(--muted);font-weight:700;padding-bottom:4px">
-          <span class="calc-row-name">Card</span>
-          <span class="calc-row-alloc" style="color:var(--muted)">Per paycheck</span>
-          <span class="calc-row-alloc" style="color:var(--muted)">Per month</span>
-          <span class="calc-row-months" style="color:var(--muted)">Payoff</span>
-          <span class="calc-row-interest" style="color:var(--muted)">Interest</span>
-        </div>`
+      const colHeaders = `<div class="calc-row" style="font-size:0.7rem;color:var(--muted);font-weight:700;padding-bottom:4px">
+        <span class="calc-row-name">Card</span>
+        <span class="calc-row-alloc" style="color:var(--muted)">Per paycheck</span>
+        <span class="calc-row-alloc" style="color:var(--muted)">Per month</span>
+        <span class="calc-row-months" style="color:var(--muted)">Payoff</span>
+        <span class="calc-row-interest" style="color:var(--muted)">Interest</span>
+      </div>`
 
       const cardRows = rows.map(r => {
         const monthsLabel = r.months === Infinity ? '∞' : r.months === 0 ? '—' : r.months + ' mo'
@@ -262,17 +328,50 @@
 
       const highestApr = rows[0]
       const strategy = extra > 0
-        ? `<div class="calc-strategy">
-            Avalanche strategy: minimums on all cards, extra <strong>${fmt(extra / 2)}/paycheck</strong> focused on
-            <strong>${highestApr.c.name}</strong> (${highestApr.c.apr}% APR). Paid off in
-            <strong>${highestApr.months} months</strong> — then that payment rolls to the next card.
-          </div>`
-        : `<div class="calc-strategy" style="border-color:rgba(255,77,77,0.2);background:rgba(255,77,77,0.05)">
-            <strong style="color:var(--red)">Warning:</strong> ${fmt(perMonth)}/mo only covers minimums (~${fmt(totalMins)}/mo needed).
-            Increase payment to make progress on principal.
-          </div>`
+        ? `<div class="calc-strategy">Avalanche strategy: minimums on all cards, extra <strong>${fmt(extra / 2)}/paycheck</strong> focused on <strong>${highestApr.c.name}</strong> (${highestApr.c.apr}% APR). Paid off in <strong>${highestApr.months} months</strong> — then that payment rolls to the next card.</div>`
+        : `<div class="calc-strategy" style="border-color:rgba(255,77,77,0.2);background:rgba(255,77,77,0.05)"><strong style="color:var(--red)">Warning:</strong> ${fmt(perMonth)}/mo only covers minimums (~${fmt(totalMins)}/mo needed). Increase payment to make progress on principal.</div>`
 
       resultsEl.innerHTML = colHeaders + cardRows + totalRow + strategy
+    }
+
+    // ── Credit data load ───────────────────────────────────────────────────────
+
+    async function saveApr(accountId, aprVal, limitVal, btnId, statusId) {
+      const btn = document.getElementById(btnId)
+      const statusEl = document.getElementById(statusId)
+      btn.disabled = true
+      const res = await fetch('/settings/update-apr', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ account_id: accountId, apr: Number(aprVal), credit_limit: Number(limitVal) }),
+      })
+      if (res.ok) {
+        statusEl.textContent = 'Saved'
+        setTimeout(() => { statusEl.textContent = '' }, 2000)
+        load()
+      } else {
+        statusEl.textContent = 'Error'
+      }
+      btn.disabled = false
+    }
+
+    async function saveLoan(accountId, aprVal, origVal, btnId, statusId) {
+      const btn = document.getElementById(btnId)
+      const statusEl = document.getElementById(statusId)
+      btn.disabled = true
+      const res = await fetch('/settings/update-loan', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ account_id: accountId, apr: aprVal ? Number(aprVal) : null, original_balance: origVal ? Number(origVal) : null }),
+      })
+      if (res.ok) {
+        statusEl.textContent = 'Saved'
+        setTimeout(() => { statusEl.textContent = '' }, 2000)
+        load()
+      } else {
+        statusEl.textContent = 'Error'
+      }
+      btn.disabled = false
     }
 
     async function load() {
@@ -289,11 +388,10 @@
       document.getElementById('cc-util').textContent = cc.totalUtilization + '%'
       document.getElementById('cc-util').className = 'stat-value mono ' + utilColor(cc.totalUtilization)
       document.getElementById('cc-interest').textContent = fmt(cc.totalMonthlyInterest)
-      document.getElementById('cc-interest').className = 'stat-value mono ' + (cc.totalMonthlyInterest > 50 ? 'orange' : '')
       document.getElementById('cc-trend').innerHTML = trendChip(cc.trend)
 
       document.getElementById('cc-cards').innerHTML = cc.cards.length
-        ? cc.cards.sort((a,b)=>b.utilization - a.utilization).map(c => `
+        ? cc.cards.sort((a,b) => b.utilization - a.utilization).map((c, i) => `
           <div class="credit-card">
             <div class="credit-card-header">
               <div>
@@ -307,28 +405,30 @@
               <span>Limit <span>${fmt(c.limit)}</span></span>
             </div>
             <div class="progress">
-              <div class="progress-fill ${barColor(c.utilization)}" style="width:${Math.min(c.utilization,100)}%"></div>
+              <div class="progress-fill ${utilColor(c.utilization)}" style="width:${Math.min(c.utilization,100)}%"></div>
             </div>
             <div class="credit-stats">
-              <div class="credit-stat">
-                <div class="credit-stat-label">APR</div>
-                <div class="credit-stat-value">${c.apr}%${c.isVariableRate ? ' <span style="color:var(--muted);font-size:0.7rem">variable</span>' : ''}</div>
-              </div>
-              <div class="credit-stat">
-                <div class="credit-stat-label">Interest / mo</div>
-                <div class="credit-stat-value ${c.monthlyInterest > 20 ? 'text-orange' : ''}">${fmt(c.monthlyInterest)}</div>
-              </div>
-              <div class="credit-stat">
-                <div class="credit-stat-label">Payoff est.</div>
-                <div class="credit-stat-value">${c.payoffMonths > 0 ? c.payoffMonths + ' mo' : '—'}</div>
-              </div>
+              <div class="credit-stat"><div class="credit-stat-label">APR</div><div class="credit-stat-value">${c.apr}%${c.isVariableRate ? ' <span style="color:var(--muted);font-size:0.7rem">variable</span>' : ''}</div></div>
+              <div class="credit-stat"><div class="credit-stat-label">Interest / mo</div><div class="credit-stat-value ${c.monthlyInterest > 20 ? 'text-orange' : ''}">${fmt(c.monthlyInterest)}</div></div>
+              <div class="credit-stat"><div class="credit-stat-label">Payoff est.</div><div class="credit-stat-value">${c.payoffMonths > 0 ? c.payoffMonths + ' mo' : '—'}</div></div>
+            </div>
+            <div class="inline-edit-row">
+              <label>APR %</label>
+              <input class="inline-input" id="apr-${i}" type="number" step="0.01" value="${c.apr}" placeholder="APR">
+              <label>Limit $</label>
+              <input class="inline-input" id="limit-${i}" type="number" step="100" value="${c.limit}" placeholder="Limit">
+              <span class="inline-status" id="apr-status-${i}"></span>
+              <button class="inline-save-btn" id="apr-btn-${i}"
+                onclick="saveApr('${c.accountId}', document.getElementById('apr-${i}').value, document.getElementById('limit-${i}').value, 'apr-btn-${i}', 'apr-status-${i}')">
+                Save
+              </button>
             </div>
           </div>`).join('')
         : '<div class="empty">No credit cards linked.</div>'
 
       const loans = data.loanSummary?.loans ?? []
       document.getElementById('loan-cards').innerHTML = loans.length
-        ? loans.map(l => `
+        ? loans.map((l, i) => `
           <div class="loan-card">
             <div class="loan-header">
               <div>
@@ -338,21 +438,90 @@
               <span class="stat-value mono" style="font-size:1.1rem">${fmts(l.currentBalance)}</span>
             </div>
             <div class="loan-stats">
-              <div class="loan-stat">
-                <div class="loan-stat-label">APR</div>
-                <div class="loan-stat-value">${l.apr != null ? l.apr + '%' : '—'}</div>
-              </div>
-              <div class="loan-stat">
-                <div class="loan-stat-label">Paid this year</div>
-                <div class="loan-stat-value text-green">${l.principalPaidThisYear != null ? fmts(l.principalPaidThisYear) : '—'}</div>
-              </div>
-              <div class="loan-stat">
-                <div class="loan-stat-label">Payoff est.</div>
-                <div class="loan-stat-value">${l.projectedPayoffMonths != null ? l.projectedPayoffMonths + ' mo' : '—'}</div>
-              </div>
+              <div class="loan-stat"><div class="loan-stat-label">APR</div><div class="loan-stat-value">${l.apr != null ? l.apr + '%' : '—'}</div></div>
+              <div class="loan-stat"><div class="loan-stat-label">Paid this year</div><div class="loan-stat-value text-green">${l.principalPaidThisYear != null ? fmts(l.principalPaidThisYear) : '—'}</div></div>
+              <div class="loan-stat"><div class="loan-stat-label">Payoff est.</div><div class="loan-stat-value">${l.projectedPayoffMonths != null ? l.projectedPayoffMonths + ' mo' : '—'}</div></div>
+            </div>
+            <div class="inline-edit-row">
+              <label>APR %</label>
+              <input class="inline-input" id="lapr-${i}" type="number" step="0.01" value="${l.apr ?? ''}" placeholder="APR">
+              <label>Orig $</label>
+              <input class="inline-input" id="lorig-${i}" type="number" step="1000" value="${l.originalBalance ?? ''}" placeholder="Original bal">
+              <span class="inline-status" id="lapr-status-${i}"></span>
+              <button class="inline-save-btn" id="lapr-btn-${i}"
+                onclick="saveLoan('${l.accountId}', document.getElementById('lapr-${i}').value, document.getElementById('lorig-${i}').value, 'lapr-btn-${i}', 'lapr-status-${i}')">
+                Save
+              </button>
             </div>
           </div>`).join('')
         : '<div class="empty">No loans linked.</div>'
+
+      // Show Apple Card current balance hint
+      const appleCard = cc.cards.find(c => c.name === 'Apple Card')
+      if (appleCard) {
+        document.getElementById('apple-balance-hint').textContent = `Current recorded balance: ${fmt(appleCard.balance)}`
+      }
+    }
+
+    // ── Apple Card balance override ────────────────────────────────────────────
+
+    async function saveAppleBalance() {
+      const val = document.getElementById('apple-balance-input').value
+      const statusEl = document.getElementById('apple-balance-status')
+      if (!val) return
+      const res = await fetch('/apple-card/balance', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ balance: Number(val) }),
+      })
+      if (res.ok) {
+        statusEl.textContent = '✓ Saved'
+        setTimeout(() => { statusEl.textContent = '' }, 2000)
+        load()
+      } else {
+        statusEl.textContent = 'Error saving'
+      }
+    }
+
+    // ── Apple Card CSV import ──────────────────────────────────────────────────
+
+    let csvFile = null
+    const dropZone = document.getElementById('drop-zone')
+    const csvInput = document.getElementById('csv-input')
+    const importBtn = document.getElementById('import-btn')
+
+    csvInput.addEventListener('change', e => {
+      csvFile = e.target.files[0]
+      if (csvFile) { dropZone.textContent = csvFile.name; importBtn.disabled = false; importBtn.style.opacity = '1' }
+    })
+    dropZone.addEventListener('dragover', e => { e.preventDefault(); dropZone.classList.add('drag-over') })
+    dropZone.addEventListener('dragleave', () => dropZone.classList.remove('drag-over'))
+    dropZone.addEventListener('drop', e => {
+      e.preventDefault(); dropZone.classList.remove('drag-over')
+      csvFile = e.dataTransfer.files[0]
+      if (csvFile) { dropZone.textContent = csvFile.name; importBtn.disabled = false; importBtn.style.opacity = '1' }
+    })
+
+    async function importCSV() {
+      if (!csvFile) return
+      const statusEl = document.getElementById('import-status')
+      importBtn.disabled = true
+      statusEl.textContent = 'Importing…'
+      const text = await csvFile.text()
+      const res = await fetch('/apple-card/import', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ csv: text }),
+      })
+      const result = await res.json()
+      statusEl.textContent = ''
+      document.getElementById('result-bar').style.display = 'flex'
+      document.getElementById('imported-count').textContent = `✓ ${result.imported} imported`
+      document.getElementById('skipped-count').textContent = `${result.skipped} skipped`
+      if (result.errors?.length) {
+        document.getElementById('error-list').innerHTML = result.errors.map(e => `<div>${e}</div>`).join('')
+      }
+      importBtn.disabled = false
     }
 
     load()
