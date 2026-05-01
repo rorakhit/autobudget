@@ -152,10 +152,10 @@ async function getPaycheckAllocation(paycheckAmount: number, agg: PeriodAggregat
       : `$${Number(goalRow.target_value).toFixed(2)} fixed per paycheck`
     : '$100/month'
 
-  const { data: allRecurring } = await db
-    .from('recurring_charges')
-    .select('merchant_name, average_amount')
-    .eq('is_active', true)
+  const [{ data: allRecurring }, { data: latestGoals }] = await Promise.all([
+    db.from('recurring_charges').select('merchant_name, average_amount').eq('is_active', true),
+    db.from('insights').select('goals').not('goals', 'is', null).order('generated_at', { ascending: false }).limit(1).single(),
+  ])
 
   const recurringTotal = (allRecurring ?? []).reduce((s, r) => s + Number(r.average_amount ?? 0), 0)
 
@@ -166,6 +166,10 @@ async function getPaycheckAllocation(paycheckAmount: number, agg: PeriodAggregat
   const creditLines = agg.creditSummary.cards
     .map(c => `  ${c.name}: $${c.balance.toFixed(2)} balance / $${c.limit.toFixed(2)} limit (${c.utilization}% util, ${c.apr}% APR, $${c.monthlyInterest.toFixed(2)}/mo interest)`)
     .join('\n') || '  None'
+
+  const goalsSection = latestGoals?.goals
+    ? `\nActive goals from last planning session:\n${latestGoals.goals}\n`
+    : ''
 
   const prompt = `You are a personal finance advisor helping someone allocate their paycheck.
 
@@ -181,7 +185,7 @@ Credit card balances:
 ${creditLines}
 
 Average daily spend last period: $${(agg.totalSpend / 14).toFixed(2)}/day
-
+${goalsSection}
 Suggest a specific allocation for this paycheck. Format as a short list:
 - Savings: $X — [one-line reason]
 - Bills buffer: $X — [covers which charges this period]

@@ -33,9 +33,12 @@
 
     .report-section { margin-bottom: 24px; }
     .report-section:last-child { margin-bottom: 0; }
+    .report-section-header {
+      display: flex; align-items: center; justify-content: space-between; margin-bottom: 12px;
+    }
     .report-section h3 {
       font-size: 0.65rem; font-weight: 700; color: var(--muted);
-      text-transform: uppercase; letter-spacing: 0.1em; margin-bottom: 12px;
+      text-transform: uppercase; letter-spacing: 0.1em; margin: 0;
     }
 
     .alloc-text { font-size: 0.88rem; line-height: 1.7; color: #bbb; white-space: pre-wrap; }
@@ -53,13 +56,44 @@
       background: transparent; color: var(--muted); transition: all 0.15s;
     }
     .filter-tab.active { background: var(--accent); color: #000; border-color: var(--accent); }
+
+    /* Copy for Claude button */
+    .copy-claude-btn {
+      display: inline-flex; align-items: center; gap: 6px;
+      padding: 4px 10px; border-radius: var(--radius-sm); font-size: 0.72rem;
+      font-weight: 700; cursor: pointer; border: 1px solid rgba(200,255,0,0.3);
+      background: rgba(200,255,0,0.08); color: var(--accent);
+      transition: all 0.15s; white-space: nowrap;
+    }
+    .copy-claude-btn:hover { background: rgba(200,255,0,0.15); }
+    .copy-claude-btn.copied { background: rgba(0,230,118,0.1); border-color: rgba(0,230,118,0.3); color: var(--green); }
+
+    /* Goals section */
+    .goals-textarea {
+      width: 100%; min-height: 100px; padding: 10px 12px;
+      background: #111; border: 1px solid #2e2e2e; border-radius: 6px;
+      color: #f0f0f0; font-size: 0.85rem; line-height: 1.6; resize: vertical;
+      font-family: system-ui, sans-serif;
+    }
+    .goals-textarea:focus { outline: none; border-color: var(--accent); }
+    .goals-textarea::placeholder { color: #444; }
+    .goals-footer { display: flex; align-items: center; justify-content: space-between; margin-top: 8px; }
+    .goals-hint { font-size: 0.75rem; color: var(--muted); }
+    .goals-save-btn {
+      padding: 5px 14px; background: var(--accent); color: #000;
+      border: none; border-radius: 6px; font-size: 0.8rem; font-weight: 700;
+      cursor: pointer;
+    }
+    .goals-save-btn:hover { opacity: 0.85; }
+    .goals-save-btn:disabled { opacity: 0.4; cursor: default; }
+    .goals-status { font-size: 0.75rem; color: var(--green); }
+    .goals-has-content { border-color: rgba(200,255,0,0.25); }
   </style>
 </head>
 <body>
   <nav class="nav">
     <a class="nav-brand" href="/"><img src="/public/icon.png" alt="GhostPaper"> GhostPaper</a>
     <div class="nav-links">
-
       <a class="nav-link active" href="/reports">Reports</a>
       <a class="nav-link" href="/spending">Spending</a>
       <a class="nav-link" href="/credit">Credit</a>
@@ -106,6 +140,59 @@
       return t === 'biweekly' ? 'badge-accent' : t === 'monthly' ? 'badge-muted' : 'badge-green'
     }
 
+    function buildClaudePrompt(r) {
+      const kf = r.key_findings ?? {}
+      const alloc = kf.paycheck_allocation ?? ''
+      const savRec = kf.savings_recommendation ?? ''
+      const cats = r.category_breakdown ? Object.entries(r.category_breakdown).sort((a,b) => b[1] - a[1]) : []
+
+      const lines = []
+      lines.push(`=== GhostPaper Financial Report ===`)
+      lines.push(`Period: ${r.period_start} → ${r.period_end} (${typeLabel(r.period_type)})`)
+      lines.push(``)
+
+      if (r.total_income) lines.push(`Income:       ${fmtFull(r.total_income)}`)
+      if (r.total_spend) lines.push(`Spend:        ${fmtFull(r.total_spend)}`)
+      if (r.savings_rate != null) lines.push(`Savings rate: ${r.savings_rate}%`)
+      lines.push(``)
+
+      if (cats.length) {
+        lines.push(`--- Spending by category ---`)
+        cats.forEach(([cat, amt]) => lines.push(`  ${cat.padEnd(22)} ${fmtFull(amt)}`))
+        lines.push(``)
+      }
+
+      if (r.raw_analysis) {
+        lines.push(`--- Analysis ---`)
+        lines.push(r.raw_analysis)
+        lines.push(``)
+      }
+
+      if (alloc) {
+        lines.push(`--- Paycheck allocation ---`)
+        lines.push(alloc)
+        lines.push(``)
+      }
+
+      if (savRec) {
+        lines.push(`--- Savings recommendation ---`)
+        lines.push(savRec)
+        lines.push(``)
+      }
+
+      if (r.goals) {
+        lines.push(`--- My current goals ---`)
+        lines.push(r.goals)
+        lines.push(``)
+      }
+
+      lines.push(`===`)
+      lines.push(``)
+      lines.push(`What do you need to know to help me create realistic goals for the next two weeks?`)
+
+      return lines.join('\n')
+    }
+
     function render() {
       const list = document.getElementById('report-list')
       const filtered = currentFilter === 'all' ? allReports : allReports.filter(r => r.period_type === currentFilter)
@@ -117,6 +204,7 @@
         const savRec = kf.savings_recommendation ?? ''
         const cats = r.category_breakdown ? Object.entries(r.category_breakdown).sort((a,b)=>b[1]-a[1]).slice(0,6) : []
         const maxCat = cats[0]?.[1] ?? 1
+        const hasGoals = !!(r.goals && r.goals.trim())
 
         return `
         <div>
@@ -130,14 +218,26 @@
                 ${r.savings_rate != null ? `<span>Saved <span>${r.savings_rate}%</span></span>` : ''}
               </div>
             </div>
-            <span class="report-arrow">›</span>
+            <div style="display:flex;align-items:center;gap:10px">
+              ${hasGoals ? `<span style="font-size:0.7rem;color:var(--accent);font-weight:700">GOALS SET</span>` : ''}
+              <span class="report-arrow">›</span>
+            </div>
           </div>
           <div class="report-body" id="body-${i}">
             ${r.raw_analysis ? `
               <div class="report-section">
-                <h3>Analysis</h3>
+                <div class="report-section-header">
+                  <h3>Analysis</h3>
+                  <button class="copy-claude-btn" onclick="copyForClaude(event, ${i})">⬡ Copy for Claude</button>
+                </div>
                 <div class="narrative">${r.raw_analysis}</div>
-              </div>` : ''}
+              </div>` : `
+              <div class="report-section">
+                <div class="report-section-header">
+                  <h3>Report</h3>
+                  <button class="copy-claude-btn" onclick="copyForClaude(event, ${i})">⬡ Copy for Claude</button>
+                </div>
+              </div>`}
             ${cats.length ? `
               <div class="report-section">
                 <h3>Spending by category</h3>
@@ -158,6 +258,22 @@
                 <h3>Savings recommendation</h3>
                 <div class="alloc-text">${savRec}</div>
               </div>` : ''}
+
+            <div class="report-section">
+              <div class="report-section-header">
+                <h3>Goals from Claude</h3>
+                <span class="goals-status" id="goals-status-${i}"></span>
+              </div>
+              <textarea
+                class="goals-textarea${hasGoals ? ' goals-has-content' : ''}"
+                id="goals-ta-${i}"
+                placeholder="Paste your goals here after chatting with Claude — e.g. keep dining under $200, put $300 into savings this period, pay down Chase Sapphire by $100 extra…"
+              >${r.goals ?? ''}</textarea>
+              <div class="goals-footer">
+                <span class="goals-hint">These goals will be included in your next paycheck allocation advice.</span>
+                <button class="goals-save-btn" onclick="saveGoals(event, ${i}, '${r.id}')">Save goals</button>
+              </div>
+            </div>
           </div>
         </div>`
       }).join('')
@@ -169,6 +285,46 @@
       const isOpen = body.classList.contains('open')
       row.classList.toggle('open', !isOpen)
       body.classList.toggle('open', !isOpen)
+    }
+
+    async function copyForClaude(e, i) {
+      e.stopPropagation()
+      const r = (currentFilter === 'all' ? allReports : allReports.filter(r => r.period_type === currentFilter))[i]
+      const text = buildClaudePrompt(r)
+      await navigator.clipboard.writeText(text)
+      const btn = e.currentTarget
+      btn.textContent = '✓ Copied!'
+      btn.classList.add('copied')
+      setTimeout(() => { btn.textContent = '⬡ Copy for Claude'; btn.classList.remove('copied') }, 2000)
+    }
+
+    async function saveGoals(e, i, reportId) {
+      e.stopPropagation()
+      const ta = document.getElementById(`goals-ta-${i}`)
+      const statusEl = document.getElementById(`goals-status-${i}`)
+      const btn = e.currentTarget
+      const goals = ta.value.trim()
+      btn.disabled = true
+      statusEl.textContent = 'Saving…'
+      try {
+        const res = await fetch('/reports/save-goals', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ id: reportId, goals: goals || null }),
+        })
+        if (!res.ok) throw new Error((await res.json()).error)
+        // Update local data
+        const filtered = currentFilter === 'all' ? allReports : allReports.filter(r => r.period_type === currentFilter)
+        filtered[i].goals = goals || null
+        const masterIdx = allReports.findIndex(r => r.id === reportId)
+        if (masterIdx >= 0) allReports[masterIdx].goals = goals || null
+        ta.classList.toggle('goals-has-content', !!goals)
+        statusEl.textContent = '✅ Saved'
+        setTimeout(() => { statusEl.textContent = '' }, 2000)
+      } catch (err) {
+        statusEl.textContent = `❌ ${err.message}`
+      }
+      btn.disabled = false
     }
 
     async function load() {

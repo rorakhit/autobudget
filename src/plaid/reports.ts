@@ -14,6 +14,17 @@ export async function reportsPageHandler(req: FastifyRequest, reply: FastifyRepl
   await reply.type('text/html').send(html)
 }
 
+export async function saveGoalsHandler(req: FastifyRequest, reply: FastifyReply) {
+  if (!checkAuth(req, reply)) return
+
+  const { id, goals } = ((req.body as any)._parsed ?? req.body) as { id: string; goals: string }
+  if (!id) return reply.code(400).send({ error: 'id required' })
+
+  const { error } = await db.from('insights').update({ goals: goals ?? null }).eq('id', id)
+  if (error) return reply.code(500).send({ error: error.message })
+  await reply.send({ ok: true })
+}
+
 export async function reportsDataHandler(req: FastifyRequest, reply: FastifyReply) {
   if (!checkAuth(req, reply)) return
 
