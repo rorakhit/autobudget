@@ -14,7 +14,7 @@ import { paycheckDataHandler, addPaycheckPatternHandler, removePaycheckPatternHa
 import { appleCardStatusHandler, appleCardImportHandler, appleCardBalanceHandler } from './plaid/apple-card.js'
 import { homeStatsHandler } from './plaid/home.js'
 import { reportsPageHandler, reportsDataHandler, saveGoalsHandler, deleteInsightHandler, spendingPageHandler, spendingDataHandler, spendingCategoryHandler, spendingTransactionsHandler, creditPageHandler, creditDataHandler } from './plaid/reports.js'
-import { authHandler, logoutHandler } from './auth.js'
+import { authHandler, logoutHandler, checkAuthPage } from './auth.js'
 import { startCronJobs } from './reports/cron.js'
 
 const __dirname = dirname(fileURLToPath(import.meta.url))
@@ -41,15 +41,16 @@ await app.register(staticPlugin, {
   prefix: '/public/',
 })
 
-function servePage(name: string) {
-  return async (_req: any, reply: any) => {
+function servePage(name: string, auth = false) {
+  return async (req: any, reply: any) => {
+    if (auth && !checkAuthPage(req, reply)) return
     const html = readFileSync(join(__dirname, `../public/${name}`), 'utf8')
     await reply.type('text/html').send(html)
   }
 }
 
 app.get('/', servePage('index.html'))
-app.get('/accounts', servePage('accounts.html'))
+app.get('/accounts', servePage('accounts.html', true))
 app.post('/auth', authHandler)
 app.get('/auth/logout', logoutHandler)
 app.get('/health', async () => {
@@ -62,7 +63,7 @@ app.get('/home/stats', homeStatsHandler)
 
 // Webhook + Plaid link
 app.post('/webhook', webhookHandler)
-app.get('/link', servePage('link.html'))
+app.get('/link', servePage('link.html', true))
 app.get('/link/token', linkTokenHandler)
 app.get('/link/accounts', linkedAccountsHandler)
 app.post('/link/repair-webhooks', repairWebhooksHandler)

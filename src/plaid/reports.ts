@@ -1,4 +1,4 @@
-import { checkAuth } from '../auth.js'
+import { checkAuth, checkAuthPage } from '../auth.js'
 import type { FastifyRequest, FastifyReply } from 'fastify'
 import { db } from '../db/client.js'
 import { getAggregatesForPeriod } from '../reports/aggregate.js'
@@ -9,7 +9,7 @@ import { dirname, join } from 'path'
 const __dirname = dirname(fileURLToPath(import.meta.url))
 
 export async function reportsPageHandler(req: FastifyRequest, reply: FastifyReply) {
-  if (!checkAuth(req, reply)) return
+  if (!checkAuthPage(req, reply)) return
   const html = readFileSync(join(__dirname, '../../public/reports.html'), 'utf8')
   await reply.type('text/html').send(html)
 }
@@ -114,7 +114,7 @@ export async function spendingCategoryHandler(req: FastifyRequest, reply: Fastif
 }
 
 export async function spendingPageHandler(req: FastifyRequest, reply: FastifyReply) {
-  if (!checkAuth(req, reply)) return
+  if (!checkAuthPage(req, reply)) return
   const html = readFileSync(join(__dirname, '../../public/spending.html'), 'utf8')
   await reply.type('text/html').send(html)
 }
@@ -141,7 +141,7 @@ export async function spendingDataHandler(req: FastifyRequest, reply: FastifyRep
 }
 
 export async function creditPageHandler(req: FastifyRequest, reply: FastifyReply) {
-  if (!checkAuth(req, reply)) return
+  if (!checkAuthPage(req, reply)) return
   const html = readFileSync(join(__dirname, '../../public/credit.html'), 'utf8')
   await reply.type('text/html').send(html)
 }
