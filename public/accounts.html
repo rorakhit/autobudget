@@ -416,8 +416,9 @@
               <td class="tx-cat-cell"><span class="badge badge-muted">${m.category ?? 'Other'}</span></td>
               <td class="tx-amt-cell">${fmt(m.total / m.count)}/mo avg</td>
               <td style="text-align:center">
-                <button class="recur-btn active" title="Remove recurring flag from all ${m.merchant_name} transactions"
-                  onclick="unflagMerchant(${JSON.stringify(m.ids)}, this)">↻</button>
+                <button class="recur-btn active" title="Remove recurring flag"
+                  data-merchant="${m.merchant_name.replace(/"/g, '&quot;')}"
+                  onclick="unflagMerchant(this)">↻</button>
               </td>
               <td></td>
             </tr>`).join('')
@@ -453,8 +454,10 @@
         : '<tr><td colspan="6" style="text-align:center;color:var(--muted);padding:24px">No transactions.</td></tr>'
     }
 
-    async function unflagMerchant(ids, btn) {
+    async function unflagMerchant(btn) {
       btn.disabled = true
+      const merchant = btn.dataset.merchant
+      const ids = allTx.filter(t => t.merchant_name === merchant && t.is_recurring).map(t => t.plaid_transaction_id)
       await Promise.all(ids.map(id => fetch('/review/toggle-recurring', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
