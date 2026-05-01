@@ -204,6 +204,10 @@ Use exact dollar amounts. No preamble.`
   return message.content[0].type === 'text' ? message.content[0].text : ''
 }
 
+export const generateNarrativeForRegen = (agg: PeriodAggregates) => generateNarrative(agg, 'biweekly')
+export const getSavingsRecommendationForRegen = getSavingsRecommendation
+export const getPaycheckAllocationForRegen = getPaycheckAllocation
+
 export async function handlePaycheckDetected(tx: Transaction): Promise<void> {
   const { data: lastEvent } = await db
     .from('savings_events')

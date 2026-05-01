@@ -184,6 +184,12 @@
     }
     .primary-btn:hover { opacity: 0.85; }
     .primary-btn:disabled { opacity: 0.4; cursor: default; }
+    .secondary-btn {
+      padding: 8px 18px; background: transparent; color: var(--muted);
+      border: 1px solid var(--border2); border-radius: 6px; font-size: 0.85rem; font-weight: 600; cursor: pointer;
+    }
+    .secondary-btn:hover { color: var(--text); border-color: var(--muted); }
+    .secondary-btn:disabled { opacity: 0.4; cursor: default; }
     .status-sm { font-size: 0.75rem; color: var(--green); }
   </style>
 </head>
@@ -311,7 +317,10 @@
 
       <div class="section-header" style="margin-bottom:12px"><span class="section-title">Run report manually</span></div>
       <p style="font-size:0.82rem;color:var(--muted);margin-bottom:12px">Manually trigger the paycheck report if the webhook missed a deposit.</p>
-      <button class="primary-btn" id="trigger-btn" onclick="triggerReport()">Run report now</button>
+      <div style="display:flex;gap:10px;flex-wrap:wrap;align-items:center">
+        <button class="primary-btn" id="trigger-btn" onclick="triggerReport(false)">Run report now</button>
+        <button class="secondary-btn" id="regen-btn" onclick="triggerReport(true)" title="Re-run the last paycheck period with current transaction data">↻ Regenerate with current data</button>
+      </div>
       <div id="trigger-status" style="font-size:0.82rem;color:var(--muted);min-height:18px;margin-top:10px;margin-bottom:32px"></div>
 
       <div class="section-header" style="margin-bottom:12px">
@@ -662,15 +671,18 @@
       } else { statusEl.textContent = '✗ Failed' }
     }
 
-    async function triggerReport() {
-      const btn = document.getElementById('trigger-btn')
+    async function triggerReport(regen = false) {
+      const btn = document.getElementById(regen ? 'regen-btn' : 'trigger-btn')
       const statusEl = document.getElementById('trigger-status')
       btn.disabled = true
-      statusEl.textContent = 'Running…'
-      const res = await fetch('/paycheck/trigger-report', { method: 'POST' })
+      statusEl.textContent = regen ? 'Regenerating…' : 'Running…'
+      const url = regen ? '/paycheck/trigger-report?regen=1' : '/paycheck/trigger-report'
+      const res = await fetch(url, { method: 'POST' })
       const data = await res.json()
       if (res.ok) {
-        statusEl.textContent = `✓ Report queued for $${Number(data.transaction.amount).toFixed(2)} on ${data.transaction.date} — email on its way.`
+        statusEl.textContent = regen
+          ? `✓ Regenerated report for $${Number(data.transaction.amount).toFixed(2)} (${data.transaction.date}) with current data — check Reports page.`
+          : `✓ Report queued for $${Number(data.transaction.amount).toFixed(2)} on ${data.transaction.date} — email on its way.`
       } else {
         statusEl.textContent = `✗ ${data.error}`
         btn.disabled = false

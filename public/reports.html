@@ -203,6 +203,7 @@
         const kf = r.key_findings ?? {}
         const alloc = kf.paycheck_allocation ?? ''
         const savRec = kf.savings_recommendation ?? ''
+        const regenLabel = kf.label ?? ''
         const cats = r.category_breakdown ? Object.entries(r.category_breakdown).sort((a,b)=>b[1]-a[1]).slice(0,6) : []
         const maxCat = cats[0]?.[1] ?? 1
         const hasGoals = !!(r.goals && r.goals.trim())
@@ -212,6 +213,7 @@
           <div class="report-row" onclick="toggleRow(${i})" id="row-${i}">
             <div class="report-meta">
               <span class="badge ${typeBadgeClass(r.period_type)}">${typeLabel(r.period_type)}</span>
+              ${regenLabel ? `<span style="font-size:0.7rem;padding:2px 7px;border-radius:99px;background:rgba(255,200,0,0.12);color:#b8960c;font-weight:700;border:1px solid rgba(255,200,0,0.25)">${regenLabel}</span>` : ''}
               <span class="report-period">${r.period_start} → ${r.period_end}</span>
               <div class="report-stats">
                 ${r.total_income ? `<span>Income <span>${fmt(r.total_income)}</span></span>` : ''}

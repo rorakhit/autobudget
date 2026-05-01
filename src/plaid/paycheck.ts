@@ -103,6 +103,41 @@ export async function removeRecurringHandler(req: FastifyRequest, reply: Fastify
 export async function triggerPaycheckReportHandler(req: FastifyRequest, reply: FastifyReply) {
   if (!checkAuth(req, reply)) return
 
+  const isRegen = (req.query as Record<string, string>).regen === '1'
+
+  if (isRegen) {
+    const { data: lastEvent } = await db
+      .from('savings_events')
+      .select('period_start, period_end, paycheck_amount')
+      .order('created_at', { ascending: false })
+      .limit(1)
+
+    if (!lastEvent?.length) return reply.code(404).send({ error: 'No previous paycheck report found to regenerate' })
+
+    const { period_start, period_end, paycheck_amount } = lastEvent[0]
+    await reply.send({ ok: true, regen: true, transaction: { amount: paycheck_amount, date: period_end } })
+
+    setImmediate(async () => {
+      const { getAggregatesForPeriod } = await import('../reports/aggregate.js')
+      const { generateNarrativeForRegen, getSavingsRecommendationForRegen, getPaycheckAllocationForRegen } = await import('../reports/generate.js')
+      const agg = await getAggregatesForPeriod(period_start, period_end, 'biweekly')
+      const [narrative, savingsRec, allocation] = await Promise.all([
+        generateNarrativeForRegen(agg),
+        getSavingsRecommendationForRegen(Number(paycheck_amount), agg),
+        getPaycheckAllocationForRegen(Number(paycheck_amount), agg),
+      ])
+      const label = `Regen ${new Date().toISOString().replace('T', ' ').slice(0, 16)}`
+      await db.from('insights').insert({
+        period_start,
+        period_end,
+        period_type: 'biweekly',
+        raw_analysis: narrative,
+        key_findings: { savings_recommendation: savingsRec, paycheck_allocation: allocation, label },
+      })
+    })
+    return
+  }
+
   const { data: patterns } = await db.from('paycheck_patterns').select('pattern')
   if (!patterns?.length) return reply.code(400).send({ error: 'No paycheck patterns configured' })
 
