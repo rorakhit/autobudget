@@ -1,4 +1,4 @@
-<h1><img src="public/icon.svg" height="32" alt="" /> GhostPaper</h1>
+<h1><img src="public/icon.png" height="32" alt="" /> GhostPaper</h1>
 
 Fully automated personal finance system. Ingests real-time bank transactions via Plaid webhooks, categorizes them with Claude, and surfaces spending insights through Gmail alerts and a live Notion dashboard.
 
