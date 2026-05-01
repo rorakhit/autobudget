@@ -242,7 +242,7 @@ export async function getAggregatesForPeriod(
     savingsRate,
     categoryBreakdown,
     largestPurchases,
-    activeRecurringCharges: recurringRaw as RecurringCharge[],
+    activeRecurringCharges: recurringRaw as unknown as RecurringCharge[],
     creditSummary,
     loanSummary,
     savingsEvents: (savingsEventsRaw ?? []) as SavingsEvent[],
