@@ -4,7 +4,7 @@
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
   <link rel="icon" href="/public/icon.png" type="image/png">
-  <title>GhostPaper — Accounts</title>
+  <title>GhostPaper — Config</title>
   <link rel="stylesheet" href="/public/style.css">
   <style>
     /* Tabs */
@@ -19,178 +19,55 @@
     .tab-panel { display: none; }
     .tab-panel.active { display: block; }
 
-    /* Transactions tab */
-    .tx-filters { display: flex; gap: 8px; margin-bottom: 16px; flex-wrap: wrap; align-items: center; }
-    .tx-filter-input {
-      padding: 7px 12px; background: var(--bg1); border: 1px solid var(--border2);
-      border-radius: 6px; color: var(--text); font-size: 0.85rem; width: 220px;
-    }
-    .tx-filter-input:focus { outline: none; border-color: var(--accent); }
-    .filter-chip {
-      padding: 5px 12px; border-radius: 99px; font-size: 0.78rem; font-weight: 600;
-      cursor: pointer; border: 1px solid var(--border2); background: transparent; color: var(--muted);
-      transition: all 0.15s;
-    }
-    .filter-chip.active { background: var(--accent); color: #000; border-color: var(--accent); }
-
-    .tx-table-wrap { overflow-x: auto; }
-    .tx-full-table { width: 100%; border-collapse: collapse; font-size: 0.82rem; }
-    .tx-full-table th {
-      text-align: left; padding: 8px 10px; font-size: 0.68rem; font-weight: 700;
-      color: var(--muted); text-transform: uppercase; letter-spacing: 0.07em;
-      border-bottom: 1px solid var(--border);
-    }
-    .tx-full-table td { padding: 9px 10px; border-bottom: 1px solid var(--border); vertical-align: middle; }
-    .tx-full-table tr:last-child td { border-bottom: none; }
-    .tx-full-table tr:hover td { background: var(--bg1); }
-    .tx-merchant-cell { font-weight: 600; max-width: 200px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
-    .tx-date-cell { color: var(--muted); white-space: nowrap; }
-    .tx-amt-cell { font-weight: 700; text-align: right; white-space: nowrap; }
-    .tx-cat-cell { min-width: 120px; }
-    .tx-cat-select {
-      padding: 4px 8px; background: var(--bg2); border: 1px solid var(--border2);
-      border-radius: 5px; color: var(--text); font-size: 0.78rem; width: 100%;
-    }
-    .tx-cat-select:focus { outline: none; border-color: var(--accent); }
-    .recur-btn {
-      background: none; border: none; cursor: pointer; font-size: 1rem;
-      padding: 2px 4px; border-radius: 4px; transition: background 0.1s; line-height: 1;
-      color: var(--muted);
-    }
-    .recur-btn.active { color: var(--accent); }
-    .recur-btn:hover { background: var(--bg2); }
-    .confirm-btn {
-      padding: 3px 9px; border-radius: 4px; font-size: 0.72rem; font-weight: 700;
-      cursor: pointer; border: 1px solid var(--border2); background: transparent; color: var(--muted);
-      white-space: nowrap;
-    }
-    .confirm-btn:hover { background: rgba(200,255,0,0.1); border-color: var(--accent); color: var(--accent); }
-    .flagged-row td { background: rgba(255,200,0,0.03); }
-    .flag-dot { display: inline-block; width: 6px; height: 6px; border-radius: 50%; background: var(--accent); margin-right: 5px; vertical-align: middle; }
-
-    /* Rules tab */
-    .form-card { background: var(--bg1); border: 1px solid var(--border); border-radius: var(--radius); padding: 20px 24px; margin-bottom: 28px; }
-    .form-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 12px 20px; }
+    /* Rules & Categories */
+    .form-card { background: var(--bg1); border: 1px solid var(--border); border-radius: var(--radius); padding: 20px; margin-bottom: 28px; }
+    .form-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 14px; margin-bottom: 16px; }
     .form-group { display: flex; flex-direction: column; gap: 4px; }
     .form-group.full { grid-column: 1 / -1; }
     .form-label { font-size: 0.72rem; font-weight: 700; color: var(--muted); text-transform: uppercase; letter-spacing: 0.06em; }
-    .form-input {
-      padding: 8px 10px; border: 1px solid var(--border2); border-radius: 6px;
-      font-size: 0.88rem; background: var(--bg2); color: var(--text); width: 100%;
-    }
+    .form-input { padding: 8px 10px; background: var(--bg); border: 1px solid var(--border2); border-radius: 6px; color: var(--text); font-size: 0.85rem; }
     .form-input:focus { outline: none; border-color: var(--accent); }
-    .form-hint { font-size: 0.72rem; color: var(--muted); margin-top: 2px; }
-    .amount-row { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; }
-    .submit-btn {
-      margin-top: 16px; padding: 9px 24px; background: var(--accent); color: #000;
-      border: none; border-radius: 6px; font-size: 0.88rem; cursor: pointer; font-weight: 700;
-    }
+    .form-hint { font-size: 0.72rem; color: var(--muted); }
+    .amount-row { display: flex; gap: 6px; }
+    .submit-btn { padding: 8px 20px; background: var(--accent); color: #000; border: none; border-radius: 6px; font-size: 0.85rem; font-weight: 700; cursor: pointer; }
     .submit-btn:hover { opacity: 0.85; }
-
-    .rules-list { display: flex; flex-direction: column; gap: 8px; }
-    .rule-card {
-      border: 1px solid var(--border); border-radius: 8px; padding: 14px 16px; background: var(--bg1);
-      display: flex; align-items: flex-start; justify-content: space-between; gap: 12px;
-    }
-    .rule-card:hover { border-color: var(--border2); }
-    .rule-label { font-weight: 600; font-size: 0.92rem; margin-bottom: 6px; }
+    .rules-list { display: flex; flex-direction: column; gap: 10px; }
+    .rule-card { display: flex; align-items: flex-start; gap: 12px; padding: 12px 14px; background: var(--bg1); border: 1px solid var(--border); border-radius: var(--radius-sm); }
+    .rule-label { font-size: 0.88rem; font-weight: 600; margin-bottom: 4px; }
     .rule-conditions { display: flex; flex-wrap: wrap; gap: 6px; }
-    .chip { background: var(--bg2); border-radius: 99px; padding: 2px 10px; font-size: 0.78rem; color: var(--muted); border: 1px solid var(--border2); }
-    .chip.category { background: rgba(200,255,0,0.08); color: var(--accent); border-color: rgba(200,255,0,0.2); font-weight: 600; }
-    .delete-btn {
-      background: none; border: 1px solid var(--border2); border-radius: 6px;
-      padding: 5px 10px; font-size: 0.78rem; color: var(--muted); cursor: pointer; white-space: nowrap; flex-shrink: 0;
-    }
-    .delete-btn:hover { background: rgba(255,77,77,0.08); border-color: rgba(255,77,77,0.3); color: var(--red); }
-
-    /* Categories */
+    .chip { display: inline-block; padding: 2px 8px; border-radius: 99px; font-size: 0.72rem; background: var(--bg2); color: var(--muted); border: 1px solid var(--border); }
+    .chip.category { background: rgba(200,255,0,0.1); color: var(--accent); border-color: rgba(200,255,0,0.3); }
+    .delete-btn { padding: 4px 10px; background: transparent; border: 1px solid var(--border2); border-radius: 4px; color: var(--muted); font-size: 0.75rem; cursor: pointer; flex-shrink: 0; }
+    .delete-btn:hover { border-color: #ef4444; color: #ef4444; }
     .cat-grid { display: flex; flex-wrap: wrap; gap: 8px; margin-bottom: 16px; }
-    .cat-chip {
-      padding: 4px 12px; border-radius: 99px; font-size: 0.8rem; font-weight: 600;
-      border: 1px solid var(--border2); background: var(--bg2); color: var(--muted);
-      display: inline-flex; align-items: center; gap: 6px;
-    }
-    .cat-chip.custom { background: rgba(200,255,0,0.08); color: var(--accent); border-color: rgba(200,255,0,0.2); }
-    .cat-chip-del { background: none; border: none; cursor: pointer; color: inherit; opacity: 0.5; padding: 0; font-size: 0.9rem; line-height: 1; }
-    .cat-chip-del:hover { opacity: 1; color: var(--red); }
+    .cat-chip { display: inline-flex; align-items: center; gap: 4px; padding: 4px 12px; border-radius: 99px; font-size: 0.78rem; font-weight: 600; background: var(--bg2); border: 1px solid var(--border); color: var(--muted); }
+    .cat-chip.custom { background: rgba(200,255,0,0.08); border-color: rgba(200,255,0,0.25); color: var(--accent); }
+    .cat-chip-del { background: transparent; border: none; color: inherit; cursor: pointer; font-size: 0.9rem; padding: 0; line-height: 1; opacity: 0.6; }
+    .cat-chip-del:hover { opacity: 1; }
     .cat-add-row { display: flex; gap: 8px; align-items: center; }
-    .cat-add-input {
-      padding: 7px 10px; background: var(--bg2); border: 1px solid var(--border2);
-      border-radius: 6px; color: var(--text); font-size: 0.85rem; width: 200px;
-    }
+    .cat-add-input { padding: 7px 12px; background: var(--bg1); border: 1px solid var(--border2); border-radius: 6px; color: var(--text); font-size: 0.85rem; width: 220px; }
     .cat-add-input:focus { outline: none; border-color: var(--accent); }
-
-    /* Paycheck tab */
-    .pattern-add { display: flex; gap: 8px; align-items: center; margin-bottom: 16px; }
-    .pattern-input {
-      flex: 1; max-width: 360px; padding: 8px 10px; border: 1px solid var(--border2);
-      border-radius: 6px; font-size: 0.9rem; background: var(--bg2); color: var(--text); font-family: monospace;
-    }
-    .pattern-input::placeholder { font-family: system-ui, sans-serif; color: var(--muted); }
-    .pattern-input:focus { outline: none; border-color: var(--accent); }
-    .pattern-list { display: flex; flex-direction: column; gap: 6px; margin-bottom: 12px; }
-    .pattern-row {
-      display: flex; align-items: center; justify-content: space-between;
-      padding: 10px 14px; background: var(--bg1); border: 1px solid var(--border); border-radius: 6px;
-    }
-    .pattern-text { font-family: monospace; font-size: 0.9rem; color: var(--accent); }
-    .pattern-remove { background: none; border: none; cursor: pointer; font-size: 1.1rem; color: var(--muted); padding: 0 2px; line-height: 1; }
-    .pattern-remove:hover { color: var(--red); }
-
-    .summary-bar {
-      display: flex; gap: 24px; margin-bottom: 20px; padding: 14px 16px;
-      background: var(--bg1); border: 1px solid var(--border); border-radius: 8px; font-size: 0.9rem;
-    }
-    .summary-item { display: flex; flex-direction: column; gap: 2px; }
-    .summary-label { font-size: 0.68rem; font-weight: 700; color: var(--muted); text-transform: uppercase; letter-spacing: 0.06em; }
-    .summary-value { font-size: 1.05rem; font-weight: 700; }
-
-    .recurring-list { display: flex; flex-direction: column; }
-    .recurring-row { display: flex; align-items: center; gap: 12px; padding: 10px 0; border-bottom: 1px solid var(--border); }
-    .recurring-row:last-child { border-bottom: none; }
-    .recurring-name { flex: 1; font-size: 0.88rem; font-weight: 600; min-width: 0; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
-    .recurring-meta { font-size: 0.75rem; color: var(--muted); margin-top: 1px; }
-    .recurring-amt { font-size: 0.88rem; font-weight: 700; white-space: nowrap; flex-shrink: 0; }
-
-    /* Settings tab */
-    .settings-section { margin-bottom: 32px; }
-    .settings-section-title { font-size: 0.72rem; font-weight: 700; color: var(--muted); text-transform: uppercase; letter-spacing: 0.08em; margin-bottom: 12px; }
-    .inst-card {
-      display: flex; align-items: center; justify-content: space-between; gap: 12px;
-      border: 1px solid var(--border); border-radius: 8px; padding: 12px 16px; margin-bottom: 8px;
-      background: var(--bg1);
-    }
-    .inst-card.error { border-color: rgba(255,77,77,0.3); background: rgba(255,77,77,0.04); }
-    .inst-name { font-weight: 600; font-size: 0.92rem; }
-    .inst-badge { display: inline-block; padding: 2px 10px; border-radius: 99px; font-size: 0.75rem; font-weight: 600; margin-top: 3px; }
-    .inst-badge.healthy { background: rgba(0,230,118,0.12); color: var(--green); }
-    .inst-badge.error { background: rgba(255,77,77,0.12); color: var(--red); }
-    .reauth-btn {
-      padding: 6px 14px; background: #f59e0b; color: white; border: none; border-radius: 6px;
-      font-size: 0.82rem; cursor: pointer; white-space: nowrap; flex-shrink: 0;
-    }
-    .reauth-btn:hover { background: #d97706; }
-    .rename-row { display: flex; gap: 8px; align-items: center; flex-wrap: wrap; }
-    .acct-select, .rename-input {
-      padding: 8px 10px; background: var(--bg2); border: 1px solid var(--border2);
-      border-radius: 6px; color: var(--text); font-size: 0.85rem;
-    }
-    .acct-select { min-width: 200px; }
-    .rename-input { width: 200px; }
-    .acct-select:focus, .rename-input:focus { outline: none; border-color: var(--accent); }
-    .primary-btn {
-      padding: 8px 18px; background: var(--accent); color: #000;
-      border: none; border-radius: 6px; font-size: 0.85rem; font-weight: 700; cursor: pointer;
-    }
+    .primary-btn { padding: 8px 18px; background: var(--accent); color: #000; border: none; border-radius: 6px; font-size: 0.85rem; font-weight: 700; cursor: pointer; }
     .primary-btn:hover { opacity: 0.85; }
     .primary-btn:disabled { opacity: 0.4; cursor: default; }
-    .secondary-btn {
-      padding: 8px 18px; background: transparent; color: var(--muted);
-      border: 1px solid var(--border2); border-radius: 6px; font-size: 0.85rem; font-weight: 600; cursor: pointer;
-    }
-    .secondary-btn:hover { color: var(--text); border-color: var(--muted); }
-    .secondary-btn:disabled { opacity: 0.4; cursor: default; }
     .status-sm { font-size: 0.75rem; color: var(--green); }
+
+    /* Settings */
+    .settings-section { margin-bottom: 32px; }
+    .settings-section-title { font-size: 0.72rem; font-weight: 700; color: var(--muted); text-transform: uppercase; letter-spacing: 0.08em; margin-bottom: 12px; }
+    .rename-row { display: flex; gap: 8px; align-items: center; flex-wrap: wrap; }
+    .acct-select { padding: 7px 10px; background: var(--bg1); border: 1px solid var(--border2); border-radius: 6px; color: var(--text); font-size: 0.85rem; min-width: 180px; }
+    .rename-input { padding: 7px 12px; background: var(--bg1); border: 1px solid var(--border2); border-radius: 6px; color: var(--text); font-size: 0.85rem; width: 200px; }
+    .rename-input:focus, .acct-select:focus { outline: none; border-color: var(--accent); }
+    .inst-card { display: flex; align-items: center; justify-content: space-between; gap: 12px; border: 1px solid var(--border); border-radius: 8px; padding: 12px 16px; margin-bottom: 10px; max-width: 480px; }
+    .inst-card.error { border-color: #fca5a5; background: #fff8f8; }
+    .inst-name { font-weight: 600; font-size: 0.95rem; }
+    .inst-badge { display: inline-block; padding: 2px 10px; border-radius: 99px; font-size: 0.78rem; font-weight: 600; margin-top: 4px; }
+    .inst-badge.healthy { background: #dcfce7; color: #15803d; }
+    .inst-badge.error { background: #fee2e2; color: #b91c1c; }
+    .reauth-btn { padding: 6px 14px; background: #f59e0b; color: white; border: none; border-radius: 6px; font-size: 0.82rem; cursor: pointer; white-space: nowrap; }
+    .reauth-btn:hover { background: #d97706; }
+    .reauth-btn:disabled { opacity: 0.4; cursor: default; }
   </style>
 </head>
 <body>
@@ -200,52 +77,24 @@
       <a class="nav-link" href="/reports">Reports</a>
       <a class="nav-link" href="/spending">Spending</a>
       <a class="nav-link" href="/credit">Credit</a>
-      <a class="nav-link active" href="/accounts">Accounts</a>
+      <a class="nav-link active" href="/accounts">Config</a>
     </div>
     <div class="nav-right"></div>
   </nav>
 
   <div class="page">
     <div class="page-title">
-      <h1>Accounts</h1>
-      <p>Transactions, rules, paycheck setup, and account settings</p>
+      <h1>Config</h1>
+      <p>Rules, categories, and account settings</p>
     </div>
 
     <div class="tab-bar">
-      <button class="tab-btn active" onclick="switchTab('transactions', this)">Transactions</button>
-      <button class="tab-btn" onclick="switchTab('rules', this)">Rules &amp; Categories</button>
-      <button class="tab-btn" onclick="switchTab('paycheck', this)">Paycheck</button>
+      <button class="tab-btn active" onclick="switchTab('rules', this)">Rules &amp; Categories</button>
       <button class="tab-btn" onclick="switchTab('settings', this)">Settings</button>
     </div>
 
-    <!-- ── TRANSACTIONS ── -->
-    <div class="tab-panel active" id="tab-transactions">
-      <div class="tx-filters">
-        <input class="tx-filter-input" id="tx-search" placeholder="Search merchant…" oninput="filterTx()">
-        <button class="filter-chip active" id="chip-all" onclick="setChip('all', this)">All</button>
-        <button class="filter-chip" id="chip-flagged" onclick="setChip('flagged', this)">Needs review</button>
-        <button class="filter-chip" id="chip-recurring" onclick="setChip('recurring', this)">Recurring</button>
-        <span style="font-size:0.75rem;color:var(--muted);margin-left:auto" id="tx-count"></span>
-      </div>
-      <div class="tx-table-wrap">
-        <table class="tx-full-table">
-          <thead>
-            <tr>
-              <th>Merchant</th>
-              <th>Date</th>
-              <th>Category</th>
-              <th style="text-align:right">Amount</th>
-              <th style="text-align:center" title="Recurring">↻</th>
-              <th></th>
-            </tr>
-          </thead>
-          <tbody id="tx-body"><tr><td colspan="6" style="text-align:center;color:var(--muted);padding:24px">Loading…</td></tr></tbody>
-        </table>
-      </div>
-    </div>
-
     <!-- ── RULES & CATEGORIES ── -->
-    <div class="tab-panel" id="tab-rules">
+    <div class="tab-panel active" id="tab-rules">
       <div class="form-card">
         <div class="section-header" style="margin-bottom:16px"><span class="section-title">Add rule</span></div>
         <form id="rule-form">
@@ -304,37 +153,6 @@
       </div>
     </div>
 
-    <!-- ── PAYCHECK ── -->
-    <div class="tab-panel" id="tab-paycheck">
-      <div class="section-header" style="margin-bottom:12px"><span class="section-title">Paycheck patterns</span></div>
-      <p style="font-size:0.82rem;color:var(--muted);margin-bottom:16px">The report fires when any income deposit's name contains one of these strings (case-insensitive). Same-day matches across accounts are combined into one paycheck total.</p>
-      <div class="pattern-add">
-        <input class="pattern-input" type="text" id="pattern-input" placeholder="e.g. DATALIGN ADVISOR" maxlength="80">
-        <button class="primary-btn" onclick="addPattern()">Add</button>
-      </div>
-      <div class="pattern-list" id="pattern-list"></div>
-      <div id="pattern-status" style="font-size:0.82rem;color:var(--muted);min-height:18px;margin-bottom:24px"></div>
-
-      <div class="section-header" style="margin-bottom:12px"><span class="section-title">Run report manually</span></div>
-      <p style="font-size:0.82rem;color:var(--muted);margin-bottom:12px">Manually trigger the paycheck report if the webhook missed a deposit.</p>
-      <div style="display:flex;gap:10px;flex-wrap:wrap;align-items:center">
-        <button class="primary-btn" id="trigger-btn" onclick="triggerReport(false)">Run report now</button>
-        <button class="secondary-btn" id="regen-btn" onclick="triggerReport(true)" title="Re-run the last paycheck period with current transaction data">↻ Regenerate with current data</button>
-      </div>
-      <div id="trigger-status" style="font-size:0.82rem;color:var(--muted);min-height:18px;margin-top:10px;margin-bottom:32px"></div>
-
-      <div class="section-header" style="margin-bottom:12px">
-        <span class="section-title">Recurring charges</span>
-        <button onclick="exportRecurring()" style="padding:4px 12px;background:rgba(200,255,0,0.1);border:1px solid rgba(200,255,0,0.3);border-radius:var(--radius-sm);color:var(--accent);font-size:0.75rem;font-weight:700;cursor:pointer">↓ Export for Claude</button>
-      </div>
-      <p style="font-size:0.82rem;color:var(--muted);margin-bottom:16px">One row per merchant — deduplicated from all transactions you've marked ↻ recurring. Use the ↻ toggle in the Transactions tab to add or remove charges.</p>
-      <div class="summary-bar" id="summary-bar" style="display:none">
-        <div class="summary-item"><span class="summary-label">Total / mo</span><span class="summary-value" id="sum-total">—</span></div>
-        <div class="summary-item"><span class="summary-label">Per paycheck</span><span class="summary-value" id="sum-period">—</span></div>
-      </div>
-      <div class="recurring-list" id="recurring-list"><div class="empty">Loading…</div></div>
-    </div>
-
     <!-- ── SETTINGS ── -->
     <div class="tab-panel" id="tab-settings">
       <div class="settings-section">
@@ -356,174 +174,20 @@
 
   <script src="https://cdn.plaid.com/link/v2/stable/link-initialize.js"></script>
   <script>
-    const fmt = n => '$' + Math.abs(n).toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })
     const DAYS = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat']
-
-    // ── Tabs ──────────────────────────────────────────────────────────────────
+    let rulesLoaded = false, settingsLoaded = false
+    let systemCats = [], customCats = []
 
     function switchTab(name, btn) {
       document.querySelectorAll('.tab-btn').forEach(b => b.classList.remove('active'))
       document.querySelectorAll('.tab-panel').forEach(p => p.classList.remove('active'))
       btn.classList.add('active')
       document.getElementById('tab-' + name).classList.add('active')
-      if (name === 'transactions' && !txLoaded) loadTransactions()
       if (name === 'rules' && !rulesLoaded) loadRules()
-      if (name === 'paycheck' && !paycheckLoaded) loadPaycheck()
       if (name === 'settings' && !settingsLoaded) loadSettings()
     }
 
-    // ── TRANSACTIONS ──────────────────────────────────────────────────────────
-
-    let allTx = [], allCategories = [], txFilter = 'all', txLoaded = false
-
-    async function loadTransactions() {
-      txLoaded = true
-      const res = await fetch('/review/all')
-      if (res.status === 403) { location.href = '/'; return }
-      const data = await res.json()
-      allTx = data.transactions
-      allCategories = data.categories
-      renderTx()
-    }
-
-    function setChip(f, btn) {
-      txFilter = f
-      document.querySelectorAll('.filter-chip').forEach(c => c.classList.remove('active'))
-      btn.classList.add('active')
-      renderTx()
-    }
-
-    function filterTx() { renderTx() }
-
-    function renderTx() {
-      const search = document.getElementById('tx-search').value.toLowerCase()
-      const body = document.getElementById('tx-body')
-
-      if (txFilter === 'recurring') {
-        // Dedupe by merchant — one row per merchant
-        const recurringTx = allTx.filter(t => t.is_recurring && (!search || (t.merchant_name ?? '').toLowerCase().includes(search)))
-        const merchantMap = new Map()
-        for (const t of recurringTx) {
-          const key = t.merchant_name ?? '—'
-          const existing = merchantMap.get(key)
-          if (!existing) {
-            merchantMap.set(key, { merchant_name: key, category: t.category, total: Number(t.amount), count: 1, last_seen: t.date, ids: [t.plaid_transaction_id] })
-          } else {
-            existing.total += Number(t.amount)
-            existing.count++
-            existing.ids.push(t.plaid_transaction_id)
-            if (t.date > existing.last_seen) existing.last_seen = t.date
-          }
-        }
-        const merchants = Array.from(merchantMap.values()).sort((a, b) => (b.total / b.count) - (a.total / a.count))
-        document.getElementById('tx-count').textContent = merchants.length + ' recurring merchants'
-        body.innerHTML = merchants.length
-          ? merchants.map(m => `
-            <tr>
-              <td class="tx-merchant-cell">↻ ${m.merchant_name}</td>
-              <td class="tx-date-cell" style="color:var(--muted)">last ${m.last_seen} · ${m.count}×</td>
-              <td class="tx-cat-cell"><span class="badge badge-muted">${m.category ?? 'Other'}</span></td>
-              <td class="tx-amt-cell">${fmt(m.total / m.count)}/mo avg</td>
-              <td style="text-align:center">
-                <button class="recur-btn active" title="Remove recurring flag"
-                  data-merchant="${m.merchant_name.replace(/"/g, '&quot;')}"
-                  onclick="unflagMerchant(this)">↻</button>
-              </td>
-              <td></td>
-            </tr>`).join('')
-          : '<tr><td colspan="6" style="text-align:center;color:var(--muted);padding:24px">No recurring transactions flagged.</td></tr>'
-        return
-      }
-
-      let rows = allTx.filter(t => {
-        if (search && !(t.merchant_name ?? '').toLowerCase().includes(search)) return false
-        if (txFilter === 'flagged') return t.flagged_for_review
-        return true
-      })
-      document.getElementById('tx-count').textContent = rows.length + ' transactions'
-      body.innerHTML = rows.length
-        ? rows.map(t => `
-          <tr class="${t.flagged_for_review ? 'flagged-row' : ''}" id="txrow-${t.plaid_transaction_id.replace(/[^a-z0-9]/gi,'')}">
-            <td class="tx-merchant-cell">${t.flagged_for_review ? '<span class="flag-dot"></span>' : ''}${t.merchant_name ?? '—'}</td>
-            <td class="tx-date-cell">${t.date}</td>
-            <td class="tx-cat-cell">
-              <select class="tx-cat-select" onchange="saveCategory('${t.plaid_transaction_id}', this.value)">
-                ${allCategories.map(c => `<option value="${c}"${c === t.category ? ' selected' : ''}>${c}</option>`).join('')}
-              </select>
-            </td>
-            <td class="tx-amt-cell">${fmt(t.amount)}</td>
-            <td style="text-align:center">
-              <button class="recur-btn ${t.is_recurring ? 'active' : ''}" title="${t.is_recurring ? 'Remove recurring flag' : 'Mark as recurring'}"
-                onclick="toggleRecurring('${t.plaid_transaction_id}', ${!t.is_recurring}, this)">↻</button>
-            </td>
-            <td>
-              ${t.flagged_for_review ? `<button class="confirm-btn" onclick="confirmTx('${t.plaid_transaction_id}', this)">Confirm</button>` : ''}
-            </td>
-          </tr>`).join('')
-        : '<tr><td colspan="6" style="text-align:center;color:var(--muted);padding:24px">No transactions.</td></tr>'
-    }
-
-    async function unflagMerchant(btn) {
-      btn.disabled = true
-      const merchant = btn.dataset.merchant
-      const ids = allTx.filter(t => t.merchant_name === merchant && t.is_recurring).map(t => t.plaid_transaction_id)
-      await Promise.all(ids.map(id => fetch('/review/toggle-recurring', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ plaid_transaction_id: id, is_recurring: false }),
-      })))
-      for (const id of ids) {
-        const tx = allTx.find(t => t.plaid_transaction_id === id)
-        if (tx) tx.is_recurring = false
-      }
-      renderTx()
-      if (paycheckLoaded) loadPaycheck()
-    }
-
-    async function saveCategory(txId, category) {
-      await fetch('/review/correct-transaction', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ plaid_transaction_id: txId, category }),
-      })
-      const tx = allTx.find(t => t.plaid_transaction_id === txId)
-      if (tx) tx.category = category
-    }
-
-    async function toggleRecurring(txId, newVal, btn) {
-      const res = await fetch('/review/toggle-recurring', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ plaid_transaction_id: txId, is_recurring: newVal }),
-      })
-      if (res.ok) {
-        const tx = allTx.find(t => t.plaid_transaction_id === txId)
-        if (tx) tx.is_recurring = newVal
-        btn.classList.toggle('active', newVal)
-        btn.title = newVal ? 'Remove recurring flag' : 'Mark as recurring'
-        if (paycheckLoaded) loadPaycheck()
-      }
-    }
-
-    async function confirmTx(txId, btn) {
-      const res = await fetch('/review/confirm-transaction', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ plaid_transaction_id: txId }),
-      })
-      if (res.ok) {
-        const tx = allTx.find(t => t.plaid_transaction_id === txId)
-        if (tx) tx.flagged_for_review = false
-        btn.parentElement.parentElement.classList.remove('flagged-row')
-        btn.remove()
-        const dot = btn.parentElement.parentElement.querySelector('.flag-dot')
-        if (dot) dot.remove()
-      }
-    }
-
     // ── RULES & CATEGORIES ────────────────────────────────────────────────────
-
-    let rulesLoaded = false, ruleCategories = [], systemCats = [], customCats = []
 
     async function loadRules() {
       rulesLoaded = true
@@ -534,11 +198,10 @@
       const rulesData = await rulesRes.json()
       const settingsData = await settingsRes.json()
 
-      ruleCategories = rulesData.categories
       systemCats = settingsData.systemCategories
       customCats = settingsData.customCategories
 
-      document.getElementById('cat-select').innerHTML = ruleCategories.map(c => `<option value="${c}">${c}</option>`).join('')
+      document.getElementById('cat-select').innerHTML = rulesData.categories.map(c => `<option value="${c}">${c}</option>`).join('')
       renderRules(rulesData.rules)
       renderCategories()
     }
@@ -624,99 +287,7 @@
       if (res.ok) { customCats = customCats.filter(c => c !== name); renderCategories() }
     }
 
-    // ── PAYCHECK ──────────────────────────────────────────────────────────────
-
-    let patterns = [], paycheckLoaded = false
-
-    async function loadPaycheck() {
-      paycheckLoaded = true
-      const data = await fetch('/paycheck/data').then(r => r.json())
-      patterns = data.patterns ?? []
-      renderPatterns()
-      renderRecurring(data.recurring ?? [])
-    }
-
-    function renderPatterns() {
-      const el = document.getElementById('pattern-list')
-      el.innerHTML = patterns.length
-        ? patterns.map(p => `
-          <div class="pattern-row" data-id="${p.id}">
-            <span class="pattern-text">${p.pattern}</span>
-            <button class="pattern-remove" title="Remove">×</button>
-          </div>`).join('')
-        : '<div style="color:var(--muted);font-size:0.85rem">No patterns yet.</div>'
-
-      el.querySelectorAll('.pattern-row').forEach(row => {
-        row.querySelector('.pattern-remove').addEventListener('click', async () => {
-          const id = row.dataset.id
-          const res = await fetch(`/paycheck/remove-pattern/${id}`, { method: 'DELETE' })
-          if (res.ok) { patterns = patterns.filter(p => p.id !== id); row.remove() }
-        })
-      })
-    }
-
-    async function addPattern() {
-      const input = document.getElementById('pattern-input')
-      const val = input.value.trim()
-      if (!val) return
-      const statusEl = document.getElementById('pattern-status')
-      const res = await fetch('/paycheck/add-pattern', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ pattern: val }) })
-      if (res.ok) {
-        const data = await res.json()
-        patterns.push(data)
-        input.value = ''
-        renderPatterns()
-        statusEl.textContent = '✓ Pattern added'
-        setTimeout(() => { statusEl.textContent = '' }, 2000)
-      } else { statusEl.textContent = '✗ Failed' }
-    }
-
-    async function triggerReport(regen = false) {
-      const btn = document.getElementById(regen ? 'regen-btn' : 'trigger-btn')
-      const statusEl = document.getElementById('trigger-status')
-      btn.disabled = true
-      statusEl.textContent = regen ? 'Regenerating…' : 'Running…'
-      const url = regen ? '/paycheck/trigger-report?regen=1' : '/paycheck/trigger-report'
-      const res = await fetch(url, { method: 'POST' })
-      const data = await res.json()
-      if (res.ok) {
-        statusEl.textContent = regen
-          ? `✓ Regenerated report for $${Number(data.transaction.amount).toFixed(2)} (${data.transaction.date}) with current data — check Reports page.`
-          : `✓ Report queued for $${Number(data.transaction.amount).toFixed(2)} on ${data.transaction.date} — email on its way.`
-      } else {
-        statusEl.textContent = `✗ ${data.error}`
-        btn.disabled = false
-      }
-    }
-
-    let recurringData = []
-
-    function renderRecurring(recurring) {
-      recurringData = recurring
-      const el = document.getElementById('recurring-list')
-      if (!recurring.length) { el.innerHTML = '<div class="empty">No recurring charges. Mark transactions as recurring in the Transactions tab.</div>'; return }
-      const total = recurring.reduce((s, r) => s + Number(r.average_amount ?? 0), 0)
-      document.getElementById('sum-total').textContent = fmt(total)
-      document.getElementById('sum-period').textContent = fmt(total / 2)
-      document.getElementById('summary-bar').style.display = 'flex'
-      el.innerHTML = recurring.map(r => `
-        <div class="recurring-row">
-          <div style="flex:1;min-width:0">
-            <div class="recurring-name">${r.merchant_name}</div>
-            <div class="recurring-meta">${r.count} occurrence${r.count !== 1 ? 's' : ''} · last ${r.last_seen ?? '—'}</div>
-          </div>
-          <span class="recurring-amt">${fmt(r.average_amount)}/mo avg</span>
-        </div>`).join('')
-    }
-
-    function exportRecurring() {
-      if (!recurringData.length) { alert('No recurring charges to export.'); return }
-      window.location.href = '/paycheck/recurring-export'
-    }
-
     // ── SETTINGS ──────────────────────────────────────────────────────────────
-
-    let settingsLoaded = false, settingsAccounts = []
 
     async function loadSettings() {
       settingsLoaded = true
@@ -726,9 +297,7 @@
       ])
       const items = await instRes.json()
       const settings = await settingsRes.json()
-      settingsAccounts = settings.accounts ?? []
 
-      // Institutions
       const instEl = document.getElementById('inst-list')
       instEl.innerHTML = items.length
         ? items.map(item => `
@@ -745,8 +314,7 @@
         btn.addEventListener('click', () => startReauth(btn.dataset.itemId, btn))
       })
 
-      // Account rename
-      document.getElementById('acct-select').innerHTML = settingsAccounts
+      document.getElementById('acct-select').innerHTML = (settings.accounts ?? [])
         .map(a => `<option value="${a.id}">${a.name}${a.mask ? ' ···' + a.mask : ''}</option>`).join('')
     }
 
@@ -781,8 +349,8 @@
       } else { statusEl.textContent = '✗ Error' }
     }
 
-    // Load first tab on page load
-    loadTransactions()
+    // Load first tab
+    loadRules()
   </script>
 </body>
 </html>
