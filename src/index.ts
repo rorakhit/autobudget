@@ -50,6 +50,7 @@ function servePage(name: string, auth = false) {
 }
 
 app.get('/', servePage('index.html'))
+app.get('/demo', servePage('demo.html'))
 app.get('/accounts', servePage('accounts.html', true))
 app.post('/auth', authHandler)
 app.get('/auth/logout', logoutHandler)
