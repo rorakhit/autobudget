@@ -62,6 +62,53 @@ async function getPlaidItemByPlaidId(plaidItemId: string): Promise<string | null
   return data?.id ?? null
 }
 
+async function getAccountIdsForItem(itemId: string): Promise<string[]> {
+  const { data } = await db.from('accounts').select('id').eq('plaid_item_id', itemId)
+  return (data ?? []).map(a => a.id)
+}
+
+export async function runPaycheckCheckForTransactions(txs: Record<string, unknown>[]): Promise<void> {
+  if (!txs.length) return
+
+  const { data: paycheckAccounts } = await db
+    .from('accounts')
+    .select('id')
+    .eq('is_paycheck_account', true)
+
+  const paycheckAccountIds = new Set((paycheckAccounts ?? []).map(a => a.id))
+
+  const paycheckDeposit = txs.find(
+    tx => tx['is_income'] && Number(tx['amount']) >= 500 && paycheckAccountIds.has(tx['account_id'] as string)
+  )
+
+  if (!paycheckDeposit) return
+
+  const fiveDaysAgo = new Date(Date.now() - 5 * 24 * 60 * 60 * 1000).toISOString()
+  const { data: recentReport } = await db
+    .from('savings_events')
+    .select('id')
+    .gte('created_at', fiveDaysAgo)
+    .limit(1)
+    .single()
+
+  if (!recentReport) {
+    await handlePaycheckDetected(paycheckDeposit as any)
+  }
+}
+
+export async function checkWebhookHealth(): Promise<{ healthy: boolean; error?: string }> {
+  try {
+    const res = await plaidClient.webhookVerificationKeyGet({ key_id: 'health-check-probe' })
+    // If we get any response (even a key-not-found), the API is reachable
+    return { healthy: true }
+  } catch (err: any) {
+    const code = err?.response?.data?.error_code
+    // INVALID_INPUT means the API is up but the key_id didn't exist — that's fine
+    if (code === 'INVALID_INPUT' || code === 'INVALID_FIELD') return { healthy: true }
+    return { healthy: false, error: code ?? err?.message ?? 'unknown' }
+  }
+}
+
 export async function webhookHandler(req: FastifyRequest, reply: FastifyReply) {
   const token = req.headers['plaid-verification-token'] as string | undefined
   const body = req.body as RawBody
@@ -95,13 +142,7 @@ export async function webhookHandler(req: FastifyRequest, reply: FastifyReply) {
 
         if (stats.added + stats.modified === 0) return
 
-        // Fetch recent transactions across all accounts belonging to this item
-        const { data: itemAccounts } = await db
-          .from('accounts')
-          .select('id')
-          .eq('plaid_item_id', itemId)
-
-        const accountIds = (itemAccounts ?? []).map(a => a.id)
+        const accountIds = await getAccountIdsForItem(itemId)
         if (!accountIds.length) return
 
         const { data: recentTx } = await db
@@ -115,31 +156,7 @@ export async function webhookHandler(req: FastifyRequest, reply: FastifyReply) {
           await checkAlertsForTransaction(tx)
         }
 
-        // Fire paycheck report only from the designated paycheck account, at most once per 5 days
-        const { data: paycheckAccounts } = await db
-          .from('accounts')
-          .select('id')
-          .eq('is_paycheck_account', true)
-
-        const paycheckAccountIds = new Set((paycheckAccounts ?? []).map(a => a.id))
-
-        const paycheckDeposit = (recentTx ?? []).find(
-          tx => tx.is_income && Number(tx.amount) >= 500 && paycheckAccountIds.has(tx.account_id)
-        )
-
-        if (paycheckDeposit) {
-          const fiveDaysAgo = new Date(Date.now() - 5 * 24 * 60 * 60 * 1000).toISOString()
-          const { data: recentReport } = await db
-            .from('savings_events')
-            .select('id')
-            .gte('created_at', fiveDaysAgo)
-            .limit(1)
-            .single()
-
-          if (!recentReport) {
-            await handlePaycheckDetected(paycheckDeposit)
-          }
-        }
+        await runPaycheckCheckForTransactions(recentTx ?? [])
       }
     } catch (err) {
       req.log.error(err, 'Webhook processing error')

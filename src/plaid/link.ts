@@ -3,6 +3,7 @@ import type { FastifyRequest, FastifyReply } from 'fastify'
 import { plaidClient } from './client.js'
 import { db } from '../db/client.js'
 import { syncTransactions } from './sync.js'
+import { runPaycheckCheckForTransactions } from './webhook.js'
 import { writeNotionHomepage } from '../reports/notion.js'
 import { CountryCode, Products } from 'plaid'
 import { readFileSync } from 'fs'
@@ -106,6 +107,21 @@ export async function syncAllHandler(req: FastifyRequest, reply: FastifyReply) {
       try {
         const stats = await syncTransactions(item.id)
         console.log(`Sync complete for ${item.institution_name}:`, stats)
+
+        if (stats.added + stats.modified > 0) {
+          const { data: recentTx } = await db
+            .from('transactions')
+            .select('*')
+            .in('account_id',
+              (await db.from('accounts').select('id').eq('plaid_item_id', item.id)).data?.map(a => a.id) ?? []
+            )
+            .order('created_at', { ascending: false })
+            .limit(stats.added + stats.modified)
+
+          await runPaycheckCheckForTransactions(recentTx ?? []).catch(err =>
+            console.error(`Paycheck check failed for ${item.institution_name}:`, err)
+          )
+        }
       } catch (err) {
         console.error(`Sync failed for ${item.institution_name}:`, err)
       }
