@@ -210,28 +210,6 @@ export async function handlePaycheckDetected(tx: Transaction): Promise<void> {
   const periodStart = lastEvent?.[0]?.period_end ?? new Date(Date.now() - 14 * 24 * 60 * 60 * 1000).toISOString().split('T')[0]
   const periodEnd = tx.date
 
-  const { data: creditAccts } = await db
-    .from('credit_accounts')
-    .select('account_id')
-
-  for (const ca of creditAccts ?? []) {
-    const { data: allTx } = await db
-      .from('transactions')
-      .select('amount, is_income, category')
-      .eq('account_id', ca.account_id)
-
-    const balance = (allTx ?? []).reduce((sum, t) => {
-      if (t.category === 'Credit Payment') return sum - Number(t.amount)
-      if (!t.is_income) return sum + Number(t.amount)
-      return sum
-    }, 0)
-
-    await db.from('balance_snapshots').insert({
-      account_id: ca.account_id,
-      balance: Math.max(0, balance),
-    })
-  }
-
   const agg = await getAggregatesForPeriod(periodStart, periodEnd, 'biweekly')
   const [narrative, savingsRec, allocation] = await Promise.all([
     generateNarrative(agg, 'biweekly'),
