@@ -70,18 +70,28 @@ async function getAccountIdsForItem(itemId: string): Promise<string[]> {
 export async function runPaycheckCheckForTransactions(txs: Record<string, unknown>[]): Promise<void> {
   if (!txs.length) return
 
-  const { data: paycheckAccounts } = await db
-    .from('accounts')
-    .select('id')
-    .eq('is_paycheck_account', true)
+  const { data: patterns } = await db.from('paycheck_patterns').select('pattern')
+  if (!patterns?.length) return
 
-  const paycheckAccountIds = new Set((paycheckAccounts ?? []).map(a => a.id))
+  const matchingDeposits = txs.filter(tx => {
+    if (!tx['is_income']) return false
+    const name = ((tx['merchant_name'] as string) ?? '').toLowerCase()
+    return patterns.some(p => name.includes(p.pattern.toLowerCase()))
+  })
 
-  const paycheckDeposit = txs.find(
-    tx => tx['is_income'] && Number(tx['amount']) >= 500 && paycheckAccountIds.has(tx['account_id'] as string)
-  )
+  if (!matchingDeposits.length) return
 
-  if (!paycheckDeposit) return
+  // Group by date — same-day matches from split direct deposit = one paycheck
+  const byDate: Record<string, Record<string, unknown>[]> = {}
+  for (const tx of matchingDeposits) {
+    const date = tx['date'] as string
+    if (!byDate[date]) byDate[date] = []
+    byDate[date].push(tx)
+  }
+
+  const latestDate = Object.keys(byDate).sort().at(-1)!
+  const group = byDate[latestDate]
+  const totalAmount = group.reduce((s, tx) => s + Number(tx['amount']), 0)
 
   const fiveDaysAgo = new Date(Date.now() - 5 * 24 * 60 * 60 * 1000).toISOString()
   const { data: recentReport } = await db
@@ -92,7 +102,8 @@ export async function runPaycheckCheckForTransactions(txs: Record<string, unknow
     .single()
 
   if (!recentReport) {
-    await handlePaycheckDetected(paycheckDeposit as any)
+    // Use first tx as representative but override amount with combined total
+    await handlePaycheckDetected({ ...(group[0] as any), amount: totalAmount, date: latestDate })
   }
 }
 

@@ -19,31 +19,37 @@ export function startCronJobs(): void {
     await runYearlyReport(year).catch(console.error)
   })
 
-  // Daily catch-up: fire paycheck report if a deposit landed in the last 7 days
+  // Daily catch-up: fire paycheck report if a pattern-matching deposit landed in the last 7 days
   // with no savings_event within ±2 days of it (catches missed webhook windows)
   cron.schedule('0 9 * * *', async () => {
     console.log('Running daily paycheck catch-up check')
     try {
-      const { data: paycheckAccounts } = await db
-        .from('accounts')
-        .select('id')
-        .eq('is_paycheck_account', true)
-
-      if (!paycheckAccounts?.length) return
+      const { data: patterns } = await db.from('paycheck_patterns').select('pattern')
+      if (!patterns?.length) return
 
       const sevenDaysAgo = new Date(Date.now() - 7 * 24 * 60 * 60 * 1000).toISOString()
 
-      const { data: candidates } = await db
+      const { data: incomeTxs } = await db
         .from('transactions')
         .select('*')
-        .in('account_id', paycheckAccounts.map(a => a.id))
         .eq('is_income', true)
-        .gte('amount', 500)
         .gte('created_at', sevenDaysAgo)
-        .order('created_at', { ascending: false })
+        .order('date', { ascending: false })
 
-      for (const tx of candidates ?? []) {
-        const txDate = new Date(tx.date as string)
+      const matching = (incomeTxs ?? []).filter(tx => {
+        const name = (tx.merchant_name ?? '').toLowerCase()
+        return patterns.some(p => name.includes(p.pattern.toLowerCase()))
+      })
+
+      // Group by date, check each date for a missing savings_event
+      const byDate: Record<string, typeof matching> = {}
+      for (const tx of matching) {
+        if (!byDate[tx.date]) byDate[tx.date] = []
+        byDate[tx.date].push(tx)
+      }
+
+      for (const date of Object.keys(byDate).sort().reverse()) {
+        const txDate = new Date(date)
         const windowStart = new Date(txDate.getTime() - 2 * 24 * 60 * 60 * 1000).toISOString()
         const windowEnd = new Date(txDate.getTime() + 2 * 24 * 60 * 60 * 1000).toISOString()
 
@@ -56,8 +62,11 @@ export function startCronJobs(): void {
           .single()
 
         if (!existing) {
-          console.log(`Catch-up: firing paycheck report for missed deposit ${tx.id}`)
-          await handlePaycheckDetected(tx).catch(err =>
+          const group = byDate[date]
+          const totalAmount = group.reduce((s, tx) => s + Number(tx.amount), 0)
+          const combined = { ...group[0], amount: totalAmount, date }
+          console.log(`Catch-up: firing paycheck report for ${date}, combined amount ${totalAmount}`)
+          await handlePaycheckDetected(combined).catch(err =>
             console.error('Catch-up paycheck report failed:', err)
           )
           break // one report per day max

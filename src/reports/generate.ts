@@ -154,42 +154,26 @@ async function getPaycheckAllocation(paycheckAmount: number, agg: PeriodAggregat
 
   const { data: allRecurring } = await db
     .from('recurring_charges')
-    .select('merchant_name, average_amount, is_pre_allocated, pre_allocated_amount')
+    .select('merchant_name, average_amount')
     .eq('is_active', true)
 
-  const preAllocated = (allRecurring ?? []).filter(r => r.is_pre_allocated)
-  const discretionary = (allRecurring ?? []).filter(r => !r.is_pre_allocated)
+  const recurringTotal = (allRecurring ?? []).reduce((s, r) => s + Number(r.average_amount ?? 0), 0)
 
-  const preTotal = preAllocated.reduce((s, r) => s + Number(r.pre_allocated_amount ?? r.average_amount ?? 0), 0)
-  const discTotal = discretionary.reduce((s, r) => s + Number(r.average_amount ?? 0), 0)
-
-  const preLines = preAllocated.length
-    ? preAllocated.map(r => `  ${r.merchant_name}: $${Number(r.pre_allocated_amount ?? r.average_amount).toFixed(2)}`).join('\n')
-    : '  None'
-
-  const discLines = discretionary.length
-    ? discretionary.map(r => `  ${r.merchant_name}: ~$${Number(r.average_amount).toFixed(2)}`).join('\n')
+  const recurringLines = (allRecurring ?? []).length
+    ? (allRecurring ?? []).map(r => `  ${r.merchant_name}: ~$${Number(r.average_amount).toFixed(2)}/mo`).join('\n')
     : '  None'
 
   const creditLines = agg.creditSummary.cards
     .map(c => `  ${c.name}: $${c.balance.toFixed(2)} balance / $${c.limit.toFixed(2)} limit (${c.utilization}% util, ${c.apr}% APR, $${c.monthlyInterest.toFixed(2)}/mo interest)`)
     .join('\n') || '  None'
 
-  const remaining = paycheckAmount - preTotal
-
   const prompt = `You are a personal finance advisor helping someone allocate their paycheck.
 
-Paycheck: $${paycheckAmount.toFixed(2)}
+Paycheck (combined from split direct deposit): $${paycheckAmount.toFixed(2)}
 
-Pre-allocated (auto-handled, dedicated accounts — do not include in advice):
-${preLines}
-Pre-allocated total: $${preTotal.toFixed(2)}
-
-Remaining after pre-allocated: $${remaining.toFixed(2)}
-
-Discretionary recurring charges to cover from remaining (monthly averages, pro-rated ~2 weeks):
-${discLines}
-Discretionary total / mo: ~$${discTotal.toFixed(2)} (~$${(discTotal / 2).toFixed(2)} this period)
+Recurring charges across all accounts (monthly averages, pro-rate ~2 weeks for this period):
+${recurringLines}
+Recurring total / mo: ~$${recurringTotal.toFixed(2)} (~$${(recurringTotal / 2).toFixed(2)} this period)
 
 Savings goal: ${savingsGoalDesc}
 
@@ -198,9 +182,9 @@ ${creditLines}
 
 Average daily spend last period: $${(agg.totalSpend / 14).toFixed(2)}/day
 
-From the remaining $${remaining.toFixed(2)}, suggest a specific allocation. Format as a short list:
+Suggest a specific allocation for this paycheck. Format as a short list:
 - Savings: $X — [one-line reason]
-- Discretionary bills buffer: $X — [covers which charges]
+- Bills buffer: $X — [covers which charges this period]
 - [Credit card] payment: $X — [whether to pay minimum, more, or hold]
 - Spending money: $X
 

@@ -81,6 +81,7 @@ async function storeTransaction(tx: Transaction, accountId: string): Promise<voi
       merchant_name: merchantName,
       average_amount: amount,
       last_seen: tx.date,
+      account_id: accountId,
     }, { onConflict: 'merchant_name' })
   }
 }

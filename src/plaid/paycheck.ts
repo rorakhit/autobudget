@@ -17,29 +17,38 @@ export async function paycheckPageHandler(req: FastifyRequest, reply: FastifyRep
 export async function paycheckDataHandler(req: FastifyRequest, reply: FastifyReply) {
   if (!checkAuth(req, reply)) return
 
-  const [{ data: accounts }, { data: recurring }] = await Promise.all([
-    db.from('accounts')
-      .select('id, name, mask, type, subtype, is_paycheck_account, plaid_items(institution_name)')
-      .eq('type', 'depository')
-      .order('name'),
+  const [{ data: patterns }, { data: recurring }] = await Promise.all([
+    db.from('paycheck_patterns').select('id, pattern').order('created_at'),
     db.from('recurring_charges')
-      .select('id, merchant_name, average_amount, frequency, is_pre_allocated, pre_allocated_amount, is_active')
+      .select('id, merchant_name, average_amount, frequency, last_seen, account_id, accounts(name, mask)')
       .eq('is_active', true)
       .order('average_amount', { ascending: false }),
   ])
 
-  await reply.send({ accounts: accounts ?? [], recurring: recurring ?? [] })
+  await reply.send({ patterns: patterns ?? [], recurring: recurring ?? [] })
 }
 
-export async function setPaycheckAccountHandler(req: FastifyRequest, reply: FastifyReply) {
+export async function addPaycheckPatternHandler(req: FastifyRequest, reply: FastifyReply) {
   if (!checkAuth(req, reply)) return
 
-  const { account_id } = ((req.body as any)._parsed ?? req.body) as { account_id: string }
-  if (!account_id) return reply.code(400).send({ error: 'account_id required' })
+  const { pattern } = ((req.body as any)._parsed ?? req.body) as { pattern: string }
+  if (!pattern?.trim()) return reply.code(400).send({ error: 'pattern required' })
 
-  // Clear existing, set new
-  await db.from('accounts').update({ is_paycheck_account: false }).eq('is_paycheck_account', true)
-  const { error } = await db.from('accounts').update({ is_paycheck_account: true }).eq('id', account_id)
+  const { data, error } = await db
+    .from('paycheck_patterns')
+    .insert({ pattern: pattern.trim().toUpperCase() })
+    .select('id, pattern')
+    .single()
+
+  if (error) return reply.code(500).send({ error: error.message })
+  await reply.send(data)
+}
+
+export async function removePaycheckPatternHandler(req: FastifyRequest, reply: FastifyReply) {
+  if (!checkAuth(req, reply)) return
+
+  const { id } = req.params as { id: string }
+  const { error } = await db.from('paycheck_patterns').delete().eq('id', id)
   if (error) return reply.code(500).send({ error: error.message })
   await reply.send({ ok: true })
 }
@@ -55,50 +64,33 @@ export async function removeRecurringHandler(req: FastifyRequest, reply: Fastify
 export async function triggerPaycheckReportHandler(req: FastifyRequest, reply: FastifyReply) {
   if (!checkAuth(req, reply)) return
 
-  const { data: paycheckAccounts } = await db
-    .from('accounts')
-    .select('id')
-    .eq('is_paycheck_account', true)
+  const { data: patterns } = await db.from('paycheck_patterns').select('pattern')
+  if (!patterns?.length) return reply.code(400).send({ error: 'No paycheck patterns configured' })
 
-  const paycheckAccountIds = (paycheckAccounts ?? []).map(a => a.id)
-  if (!paycheckAccountIds.length) return reply.code(400).send({ error: 'No paycheck account configured' })
-
-  const { data: tx } = await db
+  const { data: incomeTxs } = await db
     .from('transactions')
     .select('*')
-    .in('account_id', paycheckAccountIds)
     .eq('is_income', true)
-    .gte('amount', 500)
     .order('date', { ascending: false })
-    .limit(1)
-    .single()
+    .limit(200)
 
-  if (!tx) return reply.code(404).send({ error: 'No eligible paycheck deposit found' })
+  const matching = (incomeTxs ?? []).filter(tx => {
+    const name = (tx.merchant_name ?? '').toLowerCase()
+    return patterns.some((p: { pattern: string }) => name.includes(p.pattern.toLowerCase()))
+  })
 
-  await reply.send({ ok: true, transaction: { amount: tx.amount, date: tx.date } })
+  if (!matching.length) return reply.code(404).send({ error: 'No matching paycheck deposits found' })
+
+  // Take the most recent date and sum all same-day matches
+  const latestDate = matching[0].date
+  const group = matching.filter(tx => tx.date === latestDate)
+  const totalAmount = group.reduce((s, tx) => s + Number(tx.amount), 0)
+  const combined = { ...group[0], amount: totalAmount, date: latestDate }
+
+  await reply.send({ ok: true, transaction: { amount: totalAmount, date: latestDate } })
 
   setImmediate(async () => {
-    await handlePaycheckDetected(tx)
+    await handlePaycheckDetected(combined)
   })
 }
 
-export async function updateRecurringAllocationHandler(req: FastifyRequest, reply: FastifyReply) {
-  if (!checkAuth(req, reply)) return
-
-  const { id, is_pre_allocated, pre_allocated_amount } =
-    ((req.body as any)._parsed ?? req.body) as {
-      id: string
-      is_pre_allocated: boolean
-      pre_allocated_amount?: number | null
-    }
-
-  if (!id) return reply.code(400).send({ error: 'id required' })
-
-  const { error } = await db.from('recurring_charges').update({
-    is_pre_allocated,
-    pre_allocated_amount: pre_allocated_amount ?? null,
-  }).eq('id', id)
-
-  if (error) return reply.code(500).send({ error: error.message })
-  await reply.send({ ok: true })
-}

@@ -15,11 +15,18 @@
     .section-sub { color: #666; font-size: 0.85rem; margin: 0 0 20px; }
     strong { color: #aaa; }
 
-    .acct-picker { display: flex; gap: 10px; align-items: flex-end; flex-wrap: wrap; }
-    .form-group { display: flex; flex-direction: column; gap: 4px; }
-    .form-group label { font-size: 0.78rem; font-weight: 600; color: #888; text-transform: uppercase; letter-spacing: 0.04em; }
-    select { padding: 8px 10px; border: 1px solid #2e2e2e; border-radius: 6px; font-size: 0.9rem; background: #1a1a1a; color: #f0f0f0; min-width: 300px; }
-    select:focus { outline: none; border-color: #c8ff00; }
+    /* Pattern manager */
+    .pattern-add { display: flex; gap: 8px; align-items: center; margin-bottom: 16px; }
+    .pattern-add input { flex: 1; padding: 8px 10px; border: 1px solid #2e2e2e; border-radius: 6px; font-size: 0.9rem; background: #1a1a1a; color: #f0f0f0; font-family: monospace; }
+    .pattern-add input::placeholder { color: #555; font-family: system-ui, sans-serif; }
+    .pattern-add input:focus { outline: none; border-color: #c8ff00; }
+    .pattern-list { display: flex; flex-direction: column; gap: 6px; }
+    .pattern-row { display: flex; align-items: center; justify-content: space-between; padding: 10px 14px; background: #111; border: 1px solid #222; border-radius: 6px; }
+    .pattern-text { font-family: monospace; font-size: 0.9rem; color: #c8ff00; }
+    .pattern-remove { background: none; border: none; cursor: pointer; font-size: 1rem; color: #444; padding: 0 2px; line-height: 1; }
+    .pattern-remove:hover { color: #ff4d4d; }
+    .pattern-empty { color: #555; font-size: 0.85rem; }
+
     button.primary { padding: 8px 20px; background: #c8ff00; color: #000; border: none; border-radius: 6px; font-size: 0.9rem; cursor: pointer; white-space: nowrap; font-weight: 700; }
     button.primary:hover { opacity: 0.85; }
     button.primary:disabled { opacity: 0.4; cursor: default; }
@@ -34,19 +41,9 @@
     .charge-row:last-child { border-bottom: none; }
     .charge-name { flex: 1; font-size: 0.9rem; min-width: 0; color: #f0f0f0; }
     .charge-name .merchant { white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
-    .charge-name .avg { font-size: 0.78rem; color: #666; margin-top: 1px; }
-    .charge-amount { width: 100px; }
-    .charge-amount input { width: 100%; padding: 5px 8px; border: 1px solid #2e2e2e; border-radius: 6px; font-size: 0.85rem; text-align: right; background: #1a1a1a; color: #f0f0f0; }
-    .charge-amount input:focus { outline: none; border-color: #c8ff00; }
-    .charge-amount input:disabled { background: #111; color: #444; }
-    .charge-toggle { display: flex; border: 1px solid #2e2e2e; border-radius: 6px; overflow: hidden; flex-shrink: 0; }
-    .toggle-btn { padding: 5px 10px; font-size: 0.78rem; font-weight: 600; border: none; cursor: pointer; background: #111; color: #666; transition: background 0.1s, color 0.1s; }
-    .toggle-btn.active-pre { background: #222; color: #f0f0f0; }
-    .toggle-btn.active-disc { background: rgba(200,255,0,0.1); color: #c8ff00; }
-    .toggle-btn:hover:not(.active-pre):not(.active-disc) { background: #1a1a1a; color: #aaa; }
-    .charge-save { padding: 5px 10px; background: none; border: 1px solid #2e2e2e; border-radius: 6px; font-size: 0.78rem; color: #c8ff00; cursor: pointer; white-space: nowrap; }
-    .charge-save:hover { background: rgba(200,255,0,0.08); }
-    .charge-status { font-size: 0.75rem; color: #00e676; width: 40px; text-align: center; }
+    .charge-name .meta { font-size: 0.78rem; color: #666; margin-top: 1px; }
+    .charge-acct { font-size: 0.75rem; color: #555; background: #1a1a1a; border: 1px solid #2e2e2e; border-radius: 99px; padding: 2px 8px; white-space: nowrap; flex-shrink: 0; }
+    .charge-amt { font-size: 0.9rem; font-weight: 600; color: #f0f0f0; min-width: 70px; text-align: right; flex-shrink: 0; }
     .charge-remove { background: none; border: none; cursor: pointer; font-size: 1rem; color: #444; padding: 0 2px; line-height: 1; flex-shrink: 0; }
     .charge-remove:hover { color: #ff4d4d; }
   </style>
@@ -59,26 +56,24 @@
   </nav>
   <a class="back-link" href="/">← Home</a>
   <h1>GhostPaper — Paycheck Setup</h1>
-  <p class="subtitle">Configure which account triggers your paycheck report and how recurring charges are classified.</p>
+  <p class="subtitle">Configure how your paycheck is detected and how recurring charges are classified.</p>
 
-  <!-- Paycheck trigger account -->
+  <!-- Paycheck name patterns -->
   <section>
-    <h2>Paycheck Trigger Account</h2>
-    <p class="section-sub">The paycheck allocation report fires when a deposit ≥ $500 lands in this account.</p>
-    <div class="acct-picker">
-      <div class="form-group">
-        <label>Checking account</label>
-        <select id="acct-select"><option value="">Loading…</option></select>
-      </div>
-      <button class="primary" id="acct-save-btn" disabled>Save</button>
+    <h2>Paycheck Patterns</h2>
+    <p class="section-sub">The report fires when any income deposit's name contains one of these strings (case-insensitive). Same-day matches across accounts are combined into one paycheck total.</p>
+    <div class="pattern-add">
+      <input type="text" id="pattern-input" placeholder="e.g. DATALIGN ADVISOR" maxlength="80">
+      <button class="primary" id="pattern-add-btn">Add</button>
     </div>
-    <div class="status-msg" id="acct-status"></div>
+    <div class="pattern-list" id="pattern-list"><span class="pattern-empty">Loading…</span></div>
+    <div class="status-msg" id="pattern-status"></div>
   </section>
 
   <!-- Manual report trigger -->
   <section>
     <h2>Run Paycheck Report</h2>
-    <p class="section-sub">Manually trigger the paycheck report if the webhook missed a deposit. Uses the most recent income deposit ≥ $500 in your paycheck account.</p>
+    <p class="section-sub">Manually trigger the paycheck report if the webhook missed a deposit. Finds the most recent income deposits matching your patterns.</p>
     <button class="primary" id="trigger-btn">Run report now</button>
     <div class="status-msg" id="trigger-status"></div>
   </section>
@@ -86,78 +81,55 @@
   <!-- Recurring charges -->
   <section>
     <h2>Recurring Charges</h2>
-    <p class="section-sub">
-      <strong>Pre-allocated</strong> — already committed to a dedicated account or autopay, excluded from allocation advice.<br>
-      <strong>Discretionary</strong> — needs to be covered from your remaining paycheck; Claude will factor these in.
-    </p>
+    <p class="section-sub">Auto-detected recurring charges across all your accounts. Account shown is where the charge was last seen. Claude uses these when allocating your paycheck.</p>
     <div class="summary-bar" id="summary-bar" style="display:none">
-      <div class="item"><span class="label">Pre-allocated / mo</span><span class="value pre" id="sum-pre">—</span></div>
-      <div class="item"><span class="label">Discretionary / mo</span><span class="value disc" id="sum-disc">—</span></div>
       <div class="item"><span class="label">Total recurring / mo</span><span class="value" id="sum-total">—</span></div>
+      <div class="item"><span class="label">Per paycheck (~2 wks)</span><span class="value" id="sum-period">—</span></div>
     </div>
     <div id="charges-list">Loading…</div>
   </section>
 
   <script>
-    let accounts = []
+    let patterns = []
     let recurring = []
 
-    const acctSelect = document.getElementById('acct-select')
-    const acctSaveBtn = document.getElementById('acct-save-btn')
-    const acctStatus = document.getElementById('acct-status')
+    const patternInput = document.getElementById('pattern-input')
+    const patternAddBtn = document.getElementById('pattern-add-btn')
+    const patternStatus = document.getElementById('pattern-status')
 
     function fmt(n) { return '$' + Number(n).toFixed(2) }
 
     function updateSummary() {
-      const pre = recurring.filter(r => r.is_pre_allocated).reduce((s, r) => s + Number(r.pre_allocated_amount ?? r.average_amount ?? 0), 0)
-      const disc = recurring.filter(r => !r.is_pre_allocated).reduce((s, r) => s + Number(r.average_amount ?? 0), 0)
-      document.getElementById('sum-pre').textContent = fmt(pre)
-      document.getElementById('sum-disc').textContent = fmt(disc)
-      document.getElementById('sum-total').textContent = fmt(pre + disc)
+      const total = recurring.reduce((s, r) => s + Number(r.average_amount ?? 0), 0)
+      document.getElementById('sum-total').textContent = fmt(total)
+      document.getElementById('sum-period').textContent = fmt(total / 2)
       document.getElementById('summary-bar').style.display = 'flex'
     }
 
     function renderCharges() {
       const list = document.getElementById('charges-list')
-      list.innerHTML = recurring.map(r => `
+      if (!recurring.length) {
+        list.innerHTML = '<div style="color:#555;font-size:0.9rem">No recurring charges detected yet.</div>'
+        return
+      }
+      list.innerHTML = recurring.map(r => {
+        const acct = r.accounts
+        const acctLabel = acct ? `${acct.name}${acct.mask ? ' \u00b7\u00b7\u00b7' + acct.mask : ''}` : 'Unknown account'
+        return `
         <div class="charge-row" data-id="${r.id}">
           <div class="charge-name">
             <div class="merchant">${r.merchant_name}</div>
-            <div class="avg">avg ${fmt(r.average_amount)} / mo</div>
+            <div class="meta">${r.frequency ?? 'recurring'} &middot; last ${r.last_seen ?? '&mdash;'}</div>
           </div>
-          <div class="charge-amount">
-            <input type="number" step="0.01" min="0"
-              placeholder="${Number(r.average_amount).toFixed(2)}"
-              value="${r.is_pre_allocated && r.pre_allocated_amount != null ? Number(r.pre_allocated_amount).toFixed(2) : ''}"
-              ${r.is_pre_allocated ? '' : 'disabled'}
-              title="Override amount (pre-allocated only)">
-          </div>
-          <div class="charge-toggle">
-            <button class="toggle-btn ${r.is_pre_allocated ? 'active-pre' : ''}" data-val="pre">Pre-allocated</button>
-            <button class="toggle-btn ${!r.is_pre_allocated ? 'active-disc' : ''}" data-val="disc">Discretionary</button>
-          </div>
-          <button class="charge-save">Save</button>
-          <span class="charge-status"></span>
-          <button class="charge-remove" title="Not recurring — remove from list">×</button>
-        </div>`).join('')
+          <span class="charge-acct">${acctLabel}</span>
+          <span class="charge-amt">${fmt(r.average_amount)}/mo</span>
+          <button class="charge-remove" title="Not recurring &mdash; remove from list">&times;</button>
+        </div>`
+      }).join('')
 
       list.querySelectorAll('.charge-row').forEach(row => {
         const id = row.dataset.id
         const rec = recurring.find(r => r.id === id)
-        const amtInput = row.querySelector('input')
-        const saveBtn = row.querySelector('.charge-save')
-        const statusEl = row.querySelector('.charge-status')
-
-        row.querySelectorAll('.toggle-btn').forEach(btn => {
-          btn.addEventListener('click', () => {
-            const isPre = btn.dataset.val === 'pre'
-            row.querySelectorAll('.toggle-btn').forEach(b => b.classList.remove('active-pre', 'active-disc'))
-            btn.classList.add(isPre ? 'active-pre' : 'active-disc')
-            amtInput.disabled = !isPre
-            if (!isPre) amtInput.value = ''
-          })
-        })
-
         row.querySelector('.charge-remove').addEventListener('click', async () => {
           if (!confirm(`Remove "${rec.merchant_name}" from recurring charges?`)) return
           try {
@@ -167,71 +139,13 @@
             row.remove()
             updateSummary()
           } catch (err) {
-            statusEl.textContent = '❌'
+            console.error(err)
           }
-        })
-
-        saveBtn.addEventListener('click', async () => {
-          const isPre = row.querySelector('.toggle-btn.active-pre') !== null
-          const amtVal = amtInput.value
-          saveBtn.disabled = true
-          statusEl.textContent = '…'
-          try {
-            const res = await fetch(`/paycheck/update-recurring`, {
-              method: 'POST',
-              headers: { 'Content-Type': 'application/json' },
-              body: JSON.stringify({
-                id,
-                is_pre_allocated: isPre,
-                pre_allocated_amount: isPre && amtVal ? parseFloat(amtVal) : null,
-              }),
-            })
-            if (!res.ok) throw new Error((await res.json()).error)
-            rec.is_pre_allocated = isPre
-            rec.pre_allocated_amount = isPre && amtVal ? parseFloat(amtVal) : null
-            updateSummary()
-            statusEl.textContent = '✅'
-            setTimeout(() => { statusEl.textContent = '' }, 2000)
-          } catch (err) {
-            statusEl.textContent = '❌'
-          }
-          saveBtn.disabled = false
         })
       })
 
       updateSummary()
     }
-
-    function renderAccounts() {
-      acctSelect.innerHTML = '<option value="">Select account…</option>' +
-        accounts.map(a => {
-          const inst = a.plaid_items?.institution_name ?? ''
-          const label = `${a.name}${a.mask ? ' ···' + a.mask : ''}${inst ? ' — ' + inst : ''}`
-          return `<option value="${a.id}" ${a.is_paycheck_account ? 'selected' : ''}>${label}</option>`
-        }).join('')
-      acctSaveBtn.disabled = false
-    }
-
-    acctSaveBtn.addEventListener('click', async () => {
-      const account_id = acctSelect.value
-      if (!account_id) return
-      acctSaveBtn.disabled = true
-      acctStatus.textContent = 'Saving…'
-      try {
-        const res = await fetch(`/paycheck/set-account`, {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ account_id }),
-        })
-        if (!res.ok) throw new Error((await res.json()).error)
-        accounts.forEach(a => { a.is_paycheck_account = a.id === account_id })
-        acctStatus.textContent = '✅ Saved'
-        setTimeout(() => { acctStatus.textContent = '' }, 2000)
-      } catch (err) {
-        acctStatus.textContent = `❌ ${err.message}`
-      }
-      acctSaveBtn.disabled = false
-    })
 
     document.getElementById('trigger-btn').addEventListener('click', async () => {
       const btn = document.getElementById('trigger-btn')
@@ -242,22 +156,22 @@
         const res = await fetch('/paycheck/trigger-report', { method: 'POST' })
         const data = await res.json()
         if (!res.ok) throw new Error(data.error)
-        status.textContent = `✅ Report queued for $${Number(data.transaction.amount).toFixed(2)} deposit on ${data.transaction.date} — email on its way.`
+        status.textContent = `✅ Report queued for $${Number(data.transaction.amount).toFixed(2)} combined deposit on ${data.transaction.date} — email on its way.`
       } catch (err) {
         status.textContent = `❌ ${err.message}`
         btn.disabled = false
       }
     })
 
-    fetch(`/paycheck/data`)
+    fetch('/paycheck/data')
       .then(r => r.json())
       .then(data => {
-        accounts = data.accounts
+        patterns = data.patterns
         recurring = data.recurring
-        renderAccounts()
+        renderPatterns()
         renderCharges()
       })
-      .catch(() => { acctStatus.textContent = '❌ Failed to load.' })
+      .catch(() => { patternStatus.textContent = '❌ Failed to load.' })
   </script>
 </body>
 </html>
