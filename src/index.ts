@@ -5,7 +5,7 @@ import formbody from '@fastify/formbody'
 import { dirname, join } from 'path'
 import { fileURLToPath } from 'url'
 import { webhookHandler } from './plaid/webhook.js'
-import { linkHandler, linkTokenHandler, linkedAccountsHandler, linkExchangeHandler, oauthReturnHandler, repairWebhooksHandler, syncAllHandler, refreshNotionHandler, setupGetHandler, setupPostHandler } from './plaid/link.js'
+import { linkHandler, linkTokenHandler, linkedAccountsHandler, linkExchangeHandler, oauthReturnHandler, repairWebhooksHandler, syncAllHandler, refreshNotionHandler, setupGetHandler, setupPostHandler, itemStatusHandler, reauthTokenHandler } from './plaid/link.js'
 import { reviewPageHandler, reviewTransactionsHandler, reviewCorrectHandler, merchantTransactionsHandler, correctTransactionHandler, confirmTransactionHandler, confirmMerchantHandler } from './plaid/review.js'
 import { rulesPageHandler, listRulesHandler, createRuleHandler, deleteRuleHandler } from './plaid/rules.js'
 import { settingsPageHandler, settingsDataHandler, renameAccountHandler, addCategoryHandler, deleteCategoryHandler, updateAprHandler, updateLoanHandler } from './plaid/settings.js'
@@ -56,6 +56,8 @@ app.get('/link/accounts', linkedAccountsHandler)
 app.post('/link/repair-webhooks', repairWebhooksHandler)
 app.post('/link/sync-all', syncAllHandler)
 app.post('/link/refresh-notion', refreshNotionHandler)
+app.get('/link/status', itemStatusHandler)
+app.post('/link/reauth-token', reauthTokenHandler)
 app.post('/link/exchange', linkExchangeHandler)
 app.get('/oauth-return', oauthReturnHandler)
 app.get('/setup', setupGetHandler)

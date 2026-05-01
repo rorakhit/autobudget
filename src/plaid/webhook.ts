@@ -12,17 +12,43 @@ interface RawBody {
   _parsed: Record<string, unknown>
 }
 
-async function verifyPlaidSignature(token: string, rawBody: Buffer): Promise<boolean> {
+async function verifyPlaidSignature(token: string, rawBody: Buffer, log: FastifyRequest['log']): Promise<boolean> {
   try {
     const header = jose.decodeProtectedHeader(token)
-    if (!header.kid) return false
-    const keyResponse = await plaidClient.webhookVerificationKeyGet({ key_id: header.kid })
-    const jwk = await jose.importJWK(keyResponse.data.key as jose.JWK)
-    const { payload } = await jose.compactVerify(token, jwk)
+    if (!header.kid) {
+      log.warn('Plaid webhook: missing kid in JWS header')
+      return false
+    }
+    let keyResponse
+    try {
+      keyResponse = await plaidClient.webhookVerificationKeyGet({ key_id: header.kid })
+    } catch (err: any) {
+      log.error({ err, kid: header.kid }, 'Plaid webhook: failed to fetch verification key')
+      return false
+    }
+    let jwk
+    try {
+      jwk = await jose.importJWK(keyResponse.data.key as jose.JWK)
+    } catch (err: any) {
+      log.error({ err }, 'Plaid webhook: failed to import JWK')
+      return false
+    }
+    let payload
+    try {
+      ;({ payload } = await jose.compactVerify(token, jwk))
+    } catch (err: any) {
+      log.error({ err }, 'Plaid webhook: JWS compactVerify failed')
+      return false
+    }
     const claims = JSON.parse(new TextDecoder().decode(payload)) as { request_body_sha256: string }
     const bodyHash = createHash('sha256').update(rawBody).digest('hex')
-    return claims.request_body_sha256 === bodyHash
-  } catch {
+    if (claims.request_body_sha256 !== bodyHash) {
+      log.error({ expected: claims.request_body_sha256, got: bodyHash }, 'Plaid webhook: body hash mismatch')
+      return false
+    }
+    return true
+  } catch (err: any) {
+    log.error({ err }, 'Plaid webhook: unexpected verification error')
     return false
   }
 }
@@ -40,9 +66,12 @@ export async function webhookHandler(req: FastifyRequest, reply: FastifyReply) {
   const token = req.headers['plaid-verification-token'] as string | undefined
   const body = req.body as RawBody
 
-  if (!token) return reply.code(401).send({ error: 'Missing verification token' })
+  if (!token) {
+    req.log.warn('Plaid webhook: missing plaid-verification-token header')
+    return reply.code(401).send({ error: 'Missing verification token' })
+  }
 
-  const valid = await verifyPlaidSignature(token, body._raw)
+  const valid = await verifyPlaidSignature(token, body._raw, req.log)
   if (!valid) return reply.code(401).send({ error: 'Invalid webhook signature' })
 
   const event = body._parsed

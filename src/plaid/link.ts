@@ -9,6 +9,8 @@ import { readFileSync } from 'fs'
 import { fileURLToPath } from 'url'
 import { dirname, join } from 'path'
 
+type PlaidErrorCode = string | null | undefined
+
 const __dirname = dirname(fileURLToPath(import.meta.url))
 
 async function createLinkToken() {
@@ -216,4 +218,68 @@ export async function setupPostHandler(req: FastifyRequest, reply: FastifyReply)
   await writeNotionHomepage().catch(() => {})
 
   await reply.send({ ok: true, message: 'Setup complete' })
+}
+
+export async function itemStatusHandler(req: FastifyRequest, reply: FastifyReply) {
+  if (!checkAuth(req, reply)) return
+
+  const { data: items } = await db
+    .from('plaid_items')
+    .select('id, plaid_item_id, access_token, institution_name')
+    .order('created_at', { ascending: true })
+
+  if (!items?.length) return reply.send([])
+
+  const results = await Promise.all(items.map(async item => {
+    try {
+      const res = await plaidClient.itemGet({ access_token: item.access_token })
+      const error = res.data.item.error as { error_code: PlaidErrorCode } | null
+      const errorCode = error?.error_code ?? null
+      return {
+        id: item.id,
+        institution_name: item.institution_name,
+        healthy: errorCode === null,
+        error_code: errorCode,
+        needs_reauth: errorCode === 'ITEM_LOGIN_REQUIRED',
+      }
+    } catch (err: any) {
+      const errorCode: PlaidErrorCode = err?.response?.data?.error_code ?? 'UNKNOWN'
+      return {
+        id: item.id,
+        institution_name: item.institution_name,
+        healthy: false,
+        error_code: errorCode,
+        needs_reauth: errorCode === 'ITEM_LOGIN_REQUIRED',
+      }
+    }
+  }))
+
+  await reply.send(results)
+}
+
+export async function reauthTokenHandler(req: FastifyRequest, reply: FastifyReply) {
+  if (!checkAuth(req, reply)) return
+
+  const { item_id } = ((req.body as any)._parsed ?? req.body) as { item_id: string }
+  if (!item_id) return reply.code(400).send({ error: 'item_id required' })
+
+  const { data: item } = await db
+    .from('plaid_items')
+    .select('access_token')
+    .eq('id', item_id)
+    .single()
+
+  if (!item) return reply.code(404).send({ error: 'Item not found' })
+
+  const response = await plaidClient.linkTokenCreate({
+    user: { client_user_id: 'ro' },
+    client_name: 'AutoBudget',
+    country_codes: [CountryCode.Us],
+    language: 'en',
+    access_token: item.access_token,
+    webhook: process.env.PLAID_WEBHOOK_URL!,
+    ...(process.env.PLAID_REDIRECT_URI ? { redirect_uri: process.env.PLAID_REDIRECT_URI } : {}),
+  })
+
+  await reply.send({ link_token: response.data.link_token })
 }

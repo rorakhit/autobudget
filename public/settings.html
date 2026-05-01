@@ -44,6 +44,21 @@
     .save-acct-btn:disabled { opacity: 0.4; cursor: default; }
     .acct-status { font-size: 0.8rem; color: #16a34a; }
 
+    /* Connected institutions */
+    .inst-list { display: flex; flex-direction: column; gap: 10px; max-width: 480px; }
+    .inst-card { display: flex; align-items: center; justify-content: space-between; gap: 12px;
+      border: 1px solid #e5e7eb; border-radius: 8px; padding: 12px 16px; }
+    .inst-card.error { border-color: #fca5a5; background: #fff8f8; }
+    .inst-name { font-weight: 600; font-size: 0.95rem; }
+    .inst-badge { display: inline-block; padding: 2px 10px; border-radius: 99px; font-size: 0.78rem; font-weight: 600; }
+    .inst-badge.healthy { background: #dcfce7; color: #15803d; }
+    .inst-badge.error { background: #fee2e2; color: #b91c1c; }
+    .inst-badge.loading { background: #f3f4f6; color: #6b7280; }
+    .reauth-btn { padding: 6px 14px; background: #f59e0b; color: white; border: none; border-radius: 6px;
+      font-size: 0.82rem; cursor: pointer; white-space: nowrap; }
+    .reauth-btn:hover { background: #d97706; }
+    .reauth-btn:disabled { opacity: 0.4; cursor: default; }
+
     /* Categories */
     .categories-grid { display: flex; flex-wrap: wrap; gap: 8px; margin-bottom: 20px; }
     .cat-chip {
@@ -66,6 +81,13 @@
   <a class="back-link" href="/">← Home</a>
   <h1>AutoBudget — Settings</h1>
   <p class="subtitle">Manage account names and transaction categories.</p>
+
+  <!-- Connected Institutions -->
+  <section>
+    <h2>Connected Institutions</h2>
+    <p class="section-sub">Live status of each linked bank or brokerage. Re-authenticate if login credentials have changed.</p>
+    <div class="inst-list" id="inst-list"><p style="color:#777;font-size:0.9rem">Loading…</p></div>
+  </section>
 
   <!-- Account Rename -->
   <section>
@@ -111,7 +133,73 @@
     <div class="status-msg" id="cat-status"></div>
   </section>
 
+  <script src="https://cdn.plaid.com/link/v2/stable/link-initialize.js"></script>
   <script>
+    // --- Connected Institutions ---
+    async function loadInstitutions() {
+      const list = document.getElementById('inst-list')
+      try {
+        const items = await fetch('/link/status').then(r => r.json())
+        if (!items.length) {
+          list.innerHTML = '<p style="color:#777;font-size:0.9rem">No institutions linked.</p>'
+          return
+        }
+        list.innerHTML = items.map(item => {
+          const badgeClass = item.healthy ? 'healthy' : 'error'
+          const badgeText = item.healthy ? 'Healthy' : (item.error_code ?? 'Error')
+          const cardClass = item.healthy ? '' : ' error'
+          const reauthBtn = !item.healthy
+            ? `<button class="reauth-btn" data-item-id="${item.id}">Re-authenticate</button>`
+            : ''
+          return `<div class="inst-card${cardClass}" data-item-id="${item.id}">
+            <div>
+              <div class="inst-name">${item.institution_name}</div>
+              <span class="inst-badge ${badgeClass}">${badgeText}</span>
+            </div>
+            ${reauthBtn}
+          </div>`
+        }).join('')
+
+        list.querySelectorAll('.reauth-btn').forEach(btn => {
+          btn.addEventListener('click', () => startReauth(btn.dataset.itemId, btn))
+        })
+      } catch {
+        list.innerHTML = '<p style="color:#b91c1c;font-size:0.9rem">Failed to load institution status.</p>'
+      }
+    }
+
+    async function startReauth(itemId, btn) {
+      btn.disabled = true
+      btn.textContent = 'Opening…'
+      try {
+        const { link_token } = await fetch('/link/reauth-token', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ item_id: itemId }),
+        }).then(r => r.json())
+
+        const handler = Plaid.create({
+          token: link_token,
+          onSuccess: async (_publicToken, metadata) => {
+            btn.textContent = 'Done!'
+            setTimeout(() => loadInstitutions(), 500)
+          },
+          onExit: () => {
+            btn.disabled = false
+            btn.textContent = 'Re-authenticate'
+          },
+        })
+        handler.open()
+      } catch (err) {
+        btn.disabled = false
+        btn.textContent = 'Re-authenticate'
+        alert('Failed to start re-authentication: ' + err.message)
+      }
+    }
+
+    loadInstitutions()
+
+    // --- Account Rename / Categories ---
     let accounts = []
     let systemCategories = []
     let customCategories = []
