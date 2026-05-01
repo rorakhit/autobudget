@@ -129,6 +129,25 @@ export async function triggerPaycheckReportHandler(req: FastifyRequest, reply: F
         effectivePeriodStart = d.toISOString().split('T')[0]
       }
 
+      // Re-derive paycheck amount from all pattern-matching income on period_end
+      // (stored paycheck_amount may only reflect one of several split deposits)
+      const { data: patterns } = await db.from('paycheck_patterns').select('pattern')
+      let effectivePaycheckAmount = Number(paycheck_amount)
+      if (patterns?.length) {
+        const { data: incomeTxs } = await db
+          .from('transactions')
+          .select('merchant_name, amount')
+          .eq('is_income', true)
+          .eq('date', period_end)
+        const matching = (incomeTxs ?? []).filter(tx => {
+          const name = (tx.merchant_name ?? '').toLowerCase()
+          return patterns.some((p: { pattern: string }) => name.includes(p.pattern.toLowerCase()))
+        })
+        if (matching.length) {
+          effectivePaycheckAmount = matching.reduce((s, tx) => s + Number(tx.amount), 0)
+        }
+      }
+
       const [{ data: originalInsight }, { data: txs }] = await Promise.all([
         db.from('insights')
           .select('raw_analysis')
@@ -149,8 +168,8 @@ export async function triggerPaycheckReportHandler(req: FastifyRequest, reply: F
       const agg = await getAggregatesForPeriod(effectivePeriodStart, period_end, 'biweekly')
       const [narrative, savingsRec, allocation] = await Promise.all([
         generateNarrativeForRegen(agg, originalInsight?.raw_analysis ?? null, txs ?? []),
-        getSavingsRecommendationForRegen(Number(paycheck_amount), agg),
-        getPaycheckAllocationForRegen(Number(paycheck_amount), agg),
+        getSavingsRecommendationForRegen(effectivePaycheckAmount, agg),
+        getPaycheckAllocationForRegen(effectivePaycheckAmount, agg),
       ])
       const label = `Regen ${new Date().toISOString().replace('T', ' ').slice(0, 16)}`
       await db.from('insights').insert({
