@@ -41,6 +41,43 @@
     .trend-shrinking { background: rgba(0,230,118,0.12); color: var(--green); }
     .trend-stable { background: rgba(200,255,0,0.12); color: var(--accent); }
     .trend-unknown { background: var(--bg2); color: var(--muted); }
+
+    .calc-box {
+      background: var(--bg1); border: 1px solid var(--border);
+      border-radius: var(--radius); padding: 20px; margin-bottom: 28px;
+    }
+    .calc-input-row {
+      display: flex; align-items: center; gap: 12px; flex-wrap: wrap;
+    }
+    .calc-input-label { font-size: 0.82rem; color: var(--muted); white-space: nowrap; }
+    .calc-input {
+      width: 130px; padding: 8px 12px; background: var(--bg2);
+      border: 1px solid var(--border2); border-radius: 6px;
+      color: var(--text); font-size: 0.95rem; font-weight: 700;
+    }
+    .calc-input:focus { outline: none; border-color: var(--accent); }
+    .calc-hint { font-size: 0.75rem; color: var(--muted); }
+    .calc-results { margin-top: 16px; display: flex; flex-direction: column; gap: 2px; }
+    .calc-row {
+      display: flex; align-items: center; justify-content: space-between;
+      padding: 8px 10px; border-radius: 6px; font-size: 0.82rem;
+    }
+    .calc-row:nth-child(odd) { background: var(--bg2); }
+    .calc-row-name { font-weight: 600; flex: 1; }
+    .calc-row-alloc { color: var(--accent); font-weight: 700; width: 90px; text-align: right; }
+    .calc-row-months { color: var(--muted); width: 70px; text-align: right; }
+    .calc-row-interest { color: var(--red); width: 90px; text-align: right; }
+    .calc-total-row {
+      display: flex; justify-content: space-between; align-items: center;
+      padding: 10px 10px 0; margin-top: 6px; border-top: 1px solid var(--border);
+      font-size: 0.82rem; font-weight: 700;
+    }
+    .calc-strategy {
+      margin-top: 12px; padding: 10px 12px; border-radius: 6px;
+      background: rgba(200,255,0,0.06); border: 1px solid rgba(200,255,0,0.15);
+      font-size: 0.78rem; color: var(--muted); line-height: 1.6;
+    }
+    .calc-strategy strong { color: var(--accent); }
   </style>
 </head>
 <body>
@@ -67,6 +104,18 @@
       <div class="stat-cell"><span class="stat-label">Utilization</span><span class="stat-value mono" id="cc-util">—</span></div>
       <div class="stat-cell"><span class="stat-label">Interest / mo</span><span class="stat-value mono" id="cc-interest">—</span></div>
     </div>
+
+    <section style="margin-bottom:28px">
+      <div class="section-header"><span class="section-title">Payoff calculator</span></div>
+      <div class="calc-box">
+        <div class="calc-input-row">
+          <span class="calc-input-label">Payment per paycheck</span>
+          <input class="calc-input" id="paycheck-input" type="number" min="0" step="10" placeholder="e.g. 300" oninput="runCalc()">
+          <span class="calc-hint" id="calc-monthly-hint"></span>
+        </div>
+        <div class="calc-results" id="calc-results"></div>
+      </div>
+    </section>
 
     <section>
       <div class="section-header">
@@ -95,11 +144,115 @@
       return `<span class="trend-chip ${cls}">${label}</span>`
     }
 
+    let ccData = []
+
+    function payoffMonthsWithPayment(balance, apr, monthlyPayment) {
+      if (balance <= 0) return 0
+      const monthlyRate = apr / 100 / 12
+      if (monthlyRate === 0) return Math.ceil(balance / monthlyPayment)
+      if (monthlyPayment <= balance * monthlyRate) return Infinity
+      return Math.ceil(-Math.log(1 - (monthlyRate * balance) / monthlyPayment) / Math.log(1 + monthlyRate))
+    }
+
+    function totalInterest(balance, apr, monthlyPayment) {
+      if (balance <= 0 || monthlyPayment <= 0) return 0
+      const monthlyRate = apr / 100 / 12
+      let b = balance, interest = 0, months = 0
+      while (b > 0 && months < 600) {
+        const int = b * monthlyRate
+        interest += int
+        b = b + int - monthlyPayment
+        if (b < 0) b = 0
+        months++
+      }
+      return interest
+    }
+
+    function runCalc() {
+      if (!ccData.length) return
+      const perPaycheck = parseFloat(document.getElementById('paycheck-input').value) || 0
+      const perMonth = perPaycheck * 2
+      const hint = document.getElementById('calc-monthly-hint')
+      const resultsEl = document.getElementById('calc-results')
+
+      if (perPaycheck <= 0) { hint.textContent = ''; resultsEl.innerHTML = ''; return }
+      hint.textContent = `= ${fmt(perMonth)} / month`
+
+      // Avalanche: sort by APR descending, allocate minimums first then extra to highest APR
+      const cards = ccData.filter(c => c.balance > 0).sort((a, b) => b.apr - a.apr)
+      if (!cards.length) { resultsEl.innerHTML = '<div style="color:var(--muted);font-size:0.82rem;padding:8px 0">No balances to pay off.</div>'; return }
+
+      // Minimum payment: max(25, 1% of balance + monthly interest)
+      const mins = cards.map(c => {
+        const monthlyRate = c.apr / 100 / 12
+        return Math.max(25, c.balance * 0.01 + c.balance * monthlyRate)
+      })
+      const totalMins = mins.reduce((s, m) => s + m, 0)
+      const extra = Math.max(0, perMonth - totalMins)
+
+      // Allocate: each card gets its minimum, highest-APR card gets all extra
+      const allocs = mins.map((m, i) => i === 0 ? m + extra : m)
+
+      // Per-card payoff simulation
+      const rows = cards.map((c, i) => {
+        const payment = allocs[i]
+        const months = payoffMonthsWithPayment(c.balance, c.apr, payment)
+        const interest = totalInterest(c.balance, c.apr, payment)
+        const perPaycheckAlloc = payment / 2
+        return { c, payment, perPaycheckAlloc, months, interest }
+      })
+
+      const totalInterestCost = rows.reduce((s, r) => s + r.interest, 0)
+      const maxMonths = rows.reduce((s, r) => Math.max(s, r.months === Infinity ? 9999 : r.months), 0)
+
+      const colHeaders = `
+        <div class="calc-row" style="font-size:0.7rem;color:var(--muted);font-weight:700;padding-bottom:4px">
+          <span class="calc-row-name">Card</span>
+          <span class="calc-row-alloc" style="color:var(--muted)">Per paycheck</span>
+          <span class="calc-row-alloc" style="color:var(--muted)">Per month</span>
+          <span class="calc-row-months" style="color:var(--muted)">Payoff</span>
+          <span class="calc-row-interest" style="color:var(--muted)">Interest</span>
+        </div>`
+
+      const cardRows = rows.map(r => {
+        const monthsLabel = r.months === Infinity ? '∞' : r.months === 0 ? '—' : r.months + ' mo'
+        return `<div class="calc-row">
+          <span class="calc-row-name">${r.c.name}</span>
+          <span class="calc-row-alloc">${fmt(r.perPaycheckAlloc)}</span>
+          <span class="calc-row-alloc" style="color:var(--muted)">${fmt(r.payment)}</span>
+          <span class="calc-row-months">${monthsLabel}</span>
+          <span class="calc-row-interest">${fmt(r.interest)}</span>
+        </div>`
+      }).join('')
+
+      const totalRow = `<div class="calc-total-row">
+        <span>Total</span>
+        <span style="color:var(--accent)">${fmt(perPaycheck)} / paycheck &nbsp;·&nbsp; ${fmt(perMonth)} / mo</span>
+        <span style="color:var(--muted);font-size:0.78rem">${maxMonths < 9999 ? maxMonths + ' mo debt-free' : ''}</span>
+        <span style="color:var(--red)">${fmt(totalInterestCost)} interest</span>
+      </div>`
+
+      const highestApr = rows[0]
+      const strategy = extra > 0
+        ? `<div class="calc-strategy">
+            Avalanche strategy: minimums on all cards, extra <strong>${fmt(extra / 2)}/paycheck</strong> focused on
+            <strong>${highestApr.c.name}</strong> (${highestApr.c.apr}% APR). Paid off in
+            <strong>${highestApr.months} months</strong> — then that payment rolls to the next card.
+          </div>`
+        : `<div class="calc-strategy" style="border-color:rgba(255,77,77,0.2);background:rgba(255,77,77,0.05)">
+            <strong style="color:var(--red)">Warning:</strong> ${fmt(perMonth)}/mo only covers minimums (~${fmt(totalMins)}/mo needed).
+            Increase payment to make progress on principal.
+          </div>`
+
+      resultsEl.innerHTML = colHeaders + cardRows + totalRow + strategy
+    }
+
     async function load() {
       const res = await fetch('/credit/data')
       if (res.status === 403) { location.href = '/'; return }
       const data = await res.json()
       const cc = data.creditSummary
+      ccData = cc.cards ?? []
 
       document.getElementById('cc-total').textContent = fmts(cc.totalBalance)
       document.getElementById('cc-total').className = 'stat-value mono ' + utilColor(cc.totalUtilization)
