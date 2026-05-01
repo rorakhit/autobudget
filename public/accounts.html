@@ -388,15 +388,50 @@
 
     function renderTx() {
       const search = document.getElementById('tx-search').value.toLowerCase()
+      const body = document.getElementById('tx-body')
+
+      if (txFilter === 'recurring') {
+        // Dedupe by merchant — one row per merchant
+        const recurringTx = allTx.filter(t => t.is_recurring && (!search || (t.merchant_name ?? '').toLowerCase().includes(search)))
+        const merchantMap = new Map()
+        for (const t of recurringTx) {
+          const key = t.merchant_name ?? '—'
+          const existing = merchantMap.get(key)
+          if (!existing) {
+            merchantMap.set(key, { merchant_name: key, category: t.category, total: Number(t.amount), count: 1, last_seen: t.date, ids: [t.plaid_transaction_id] })
+          } else {
+            existing.total += Number(t.amount)
+            existing.count++
+            existing.ids.push(t.plaid_transaction_id)
+            if (t.date > existing.last_seen) existing.last_seen = t.date
+          }
+        }
+        const merchants = Array.from(merchantMap.values()).sort((a, b) => (b.total / b.count) - (a.total / a.count))
+        document.getElementById('tx-count').textContent = merchants.length + ' recurring merchants'
+        body.innerHTML = merchants.length
+          ? merchants.map(m => `
+            <tr>
+              <td class="tx-merchant-cell">↻ ${m.merchant_name}</td>
+              <td class="tx-date-cell" style="color:var(--muted)">last ${m.last_seen} · ${m.count}×</td>
+              <td class="tx-cat-cell"><span class="badge badge-muted">${m.category ?? 'Other'}</span></td>
+              <td class="tx-amt-cell">${fmt(m.total / m.count)}/mo avg</td>
+              <td style="text-align:center">
+                <button class="recur-btn active" title="Remove recurring flag from all ${m.merchant_name} transactions"
+                  onclick="unflagMerchant(${JSON.stringify(m.ids)}, this)">↻</button>
+              </td>
+              <td></td>
+            </tr>`).join('')
+          : '<tr><td colspan="6" style="text-align:center;color:var(--muted);padding:24px">No recurring transactions flagged.</td></tr>'
+        return
+      }
+
       let rows = allTx.filter(t => {
         if (search && !(t.merchant_name ?? '').toLowerCase().includes(search)) return false
         if (txFilter === 'flagged') return t.flagged_for_review
-        if (txFilter === 'recurring') return t.is_recurring
         return true
       })
       document.getElementById('tx-count').textContent = rows.length + ' transactions'
-      const catOpts = allCategories.map(c => `<option value="${c}">${c}</option>`).join('')
-      document.getElementById('tx-body').innerHTML = rows.length
+      body.innerHTML = rows.length
         ? rows.map(t => `
           <tr class="${t.flagged_for_review ? 'flagged-row' : ''}" id="txrow-${t.plaid_transaction_id.replace(/[^a-z0-9]/gi,'')}">
             <td class="tx-merchant-cell">${t.flagged_for_review ? '<span class="flag-dot"></span>' : ''}${t.merchant_name ?? '—'}</td>
@@ -416,6 +451,21 @@
             </td>
           </tr>`).join('')
         : '<tr><td colspan="6" style="text-align:center;color:var(--muted);padding:24px">No transactions.</td></tr>'
+    }
+
+    async function unflagMerchant(ids, btn) {
+      btn.disabled = true
+      await Promise.all(ids.map(id => fetch('/review/toggle-recurring', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ plaid_transaction_id: id, is_recurring: false }),
+      })))
+      for (const id of ids) {
+        const tx = allTx.find(t => t.plaid_transaction_id === id)
+        if (tx) tx.is_recurring = false
+      }
+      renderTx()
+      if (paycheckLoaded) loadPaycheck()
     }
 
     async function saveCategory(txId, category) {
