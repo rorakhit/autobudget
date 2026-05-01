@@ -287,10 +287,7 @@
       e.stopPropagation()
       if (!confirm('Delete this report?')) return
       const res = await fetch(`/reports/insight/${id}`, { method: 'DELETE' })
-      if (res.ok) {
-        allReports = allReports.filter(r => r.id !== id)
-        renderReports()
-      }
+      if (res.ok) await load()
     }
 
     function toggleRow(i) {
