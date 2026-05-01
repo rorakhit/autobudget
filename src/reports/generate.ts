@@ -204,28 +204,45 @@ Use exact dollar amounts. No preamble.`
   return message.content[0].type === 'text' ? message.content[0].text : ''
 }
 
-export async function generateNarrativeForRegen(agg: PeriodAggregates, originalNarrative: string | null): Promise<string> {
+export async function generateNarrativeForRegen(
+  agg: PeriodAggregates,
+  originalNarrative: string | null,
+  transactions: Array<{ merchant_name: string | null; amount: number; date: string; category: string | null; is_income: boolean; is_recurring: boolean }>
+): Promise<string> {
   const contextStr = formatAggregatesForPrompt(agg)
+
+  const txLines = transactions
+    .map(t => {
+      const flags = [t.is_income ? 'income' : null, t.is_recurring ? 'recurring' : null].filter(Boolean).join(', ')
+      return `  ${t.date}  ${(t.merchant_name ?? 'Unknown').padEnd(35)}  $${Number(t.amount).toFixed(2).padStart(8)}  ${t.category ?? 'Uncategorized'}${flags ? `  [${flags}]` : ''}`
+    })
+    .join('\n')
+
+  const txSection = transactions.length
+    ? `\nFull transaction list for this period:\n${txLines}`
+    : '\nNo transactions found for this period.'
+
   const priorSection = originalNarrative
     ? `\n\nOriginal report for this period (written when transactions were first synced):\n"""\n${originalNarrative}\n"""\n\nSome transactions may have been re-categorized, recurring flags updated, or new transactions synced since then.`
     : ''
 
   const prompt = `You are a personal finance advisor. This is a REGENERATED analysis of the same paycheck period, run after the user updated their transaction data (re-categorizations, recurring flag changes, etc.).${priorSection}
 
-Current data:
+Current aggregates:
 ${contextStr}
+${txSection}
 
 Write a 3-5 paragraph plain-English analysis covering:
-1. Overall spending health this period (note if data looks incomplete — e.g. $0 spend likely means transactions haven't fully synced yet)
+1. Overall spending health — use the transaction list to call out specific merchants or patterns worth noting
 2. Notable category trends (good and bad) — if re-categorizations changed the picture from the original, call that out
 3. Credit health — utilization level, whether it's moving in the right direction, interest cost context
-4. 2-3 specific, actionable recommendations
+4. 2-3 specific, actionable recommendations grounded in actual transactions
 
-Be direct and honest. Use exact dollar amounts from the data. If the original report exists, briefly note what changed or was corrected. No preamble or sign-off.`
+Be direct and honest. Use exact dollar amounts. If the original report exists, briefly note what changed or was corrected. No preamble or sign-off.`
 
   const message = await anthropic.messages.create({
     model: 'claude-sonnet-4-6',
-    max_tokens: 1024,
+    max_tokens: 1500,
     messages: [{ role: 'user', content: prompt }],
   })
 

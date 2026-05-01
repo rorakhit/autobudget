@@ -121,26 +121,40 @@ export async function triggerPaycheckReportHandler(req: FastifyRequest, reply: F
       const { getAggregatesForPeriod } = await import('../reports/aggregate.js')
       const { generateNarrativeForRegen, getSavingsRecommendationForRegen, getPaycheckAllocationForRegen } = await import('../reports/generate.js')
 
-      const { data: originalInsight } = await db
-        .from('insights')
-        .select('raw_analysis')
-        .eq('period_start', period_start)
-        .eq('period_end', period_end)
-        .eq('period_type', 'biweekly')
-        .is('key_findings->label', null)
-        .order('generated_at', { ascending: true })
-        .limit(1)
-        .single()
+      // Fix bad stored dates: period_start must be before period_end
+      let effectivePeriodStart = period_start
+      if (effectivePeriodStart >= period_end) {
+        const d = new Date(period_end)
+        d.setUTCDate(d.getUTCDate() - 14)
+        effectivePeriodStart = d.toISOString().split('T')[0]
+      }
 
-      const agg = await getAggregatesForPeriod(period_start, period_end, 'biweekly')
+      const [{ data: originalInsight }, { data: txs }] = await Promise.all([
+        db.from('insights')
+          .select('raw_analysis')
+          .eq('period_start', period_start)
+          .eq('period_end', period_end)
+          .eq('period_type', 'biweekly')
+          .is('key_findings->label', null)
+          .order('generated_at', { ascending: true })
+          .limit(1)
+          .single(),
+        db.from('transactions')
+          .select('merchant_name, amount, date, category, is_income, is_recurring')
+          .gte('date', effectivePeriodStart)
+          .lte('date', period_end)
+          .order('date', { ascending: false }),
+      ])
+
+      const agg = await getAggregatesForPeriod(effectivePeriodStart, period_end, 'biweekly')
       const [narrative, savingsRec, allocation] = await Promise.all([
-        generateNarrativeForRegen(agg, originalInsight?.raw_analysis ?? null),
+        generateNarrativeForRegen(agg, originalInsight?.raw_analysis ?? null, txs ?? []),
         getSavingsRecommendationForRegen(Number(paycheck_amount), agg),
         getPaycheckAllocationForRegen(Number(paycheck_amount), agg),
       ])
       const label = `Regen ${new Date().toISOString().replace('T', ' ').slice(0, 16)}`
       await db.from('insights').insert({
-        period_start,
+        period_start: effectivePeriodStart,
         period_end,
         period_type: 'biweekly',
         raw_analysis: narrative,
