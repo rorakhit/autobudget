@@ -78,6 +78,14 @@
       font-size: 0.78rem; color: var(--muted); line-height: 1.6;
     }
     .calc-strategy strong { color: var(--accent); }
+    .calc-min-row { display: flex; align-items: center; gap: 10px; }
+    .calc-min-label { font-size: 0.82rem; width: 200px; flex-shrink: 0; }
+    .calc-min-input {
+      width: 100px; padding: 6px 10px; background: var(--bg2);
+      border: 1px solid var(--border2); border-radius: 6px;
+      color: var(--text); font-size: 0.88rem; font-weight: 700;
+    }
+    .calc-min-input:focus { outline: none; border-color: var(--accent); }
   </style>
 </head>
 <body>
@@ -109,9 +117,13 @@
       <div class="section-header"><span class="section-title">Payoff calculator</span></div>
       <div class="calc-box">
         <div class="calc-input-row">
-          <span class="calc-input-label">Payment per paycheck</span>
+          <span class="calc-input-label">Total payment per paycheck</span>
           <input class="calc-input" id="paycheck-input" type="number" min="0" step="10" placeholder="e.g. 300" oninput="runCalc()">
           <span class="calc-hint" id="calc-monthly-hint"></span>
+        </div>
+        <div id="calc-minimums" style="margin-top:14px;display:none">
+          <div style="font-size:0.72rem;color:var(--muted);font-weight:700;text-transform:uppercase;letter-spacing:0.07em;margin-bottom:8px">Minimum payment per card (monthly)</div>
+          <div id="calc-min-inputs" style="display:flex;flex-direction:column;gap:8px"></div>
         </div>
         <div class="calc-results" id="calc-results"></div>
       </div>
@@ -168,6 +180,26 @@
       return interest
     }
 
+    function renderMinInputs() {
+      const cards = ccData.filter(c => c.balance > 0).sort((a, b) => b.apr - a.apr)
+      if (!cards.length) return
+      const container = document.getElementById('calc-min-inputs')
+      container.innerHTML = cards.map((c, i) => `
+        <div class="calc-min-row">
+          <span class="calc-min-label">${c.name}</span>
+          <input class="calc-min-input" id="min-${i}" type="number" min="0" step="5" placeholder="min payment" oninput="runCalc()">
+        </div>`).join('')
+      document.getElementById('calc-minimums').style.display = 'block'
+    }
+
+    function getCardMin(i, card) {
+      const val = parseFloat(document.getElementById(`min-${i}`)?.value)
+      if (!isNaN(val) && val > 0) return val
+      // fallback estimate if not entered
+      const monthlyRate = card.apr / 100 / 12
+      return Math.max(25, card.balance * 0.01 + card.balance * monthlyRate)
+    }
+
     function runCalc() {
       if (!ccData.length) return
       const perPaycheck = parseFloat(document.getElementById('paycheck-input').value) || 0
@@ -182,11 +214,7 @@
       const cards = ccData.filter(c => c.balance > 0).sort((a, b) => b.apr - a.apr)
       if (!cards.length) { resultsEl.innerHTML = '<div style="color:var(--muted);font-size:0.82rem;padding:8px 0">No balances to pay off.</div>'; return }
 
-      // Minimum payment: max(25, 1% of balance + monthly interest)
-      const mins = cards.map(c => {
-        const monthlyRate = c.apr / 100 / 12
-        return Math.max(25, c.balance * 0.01 + c.balance * monthlyRate)
-      })
+      const mins = cards.map((c, i) => getCardMin(i, c))
       const totalMins = mins.reduce((s, m) => s + m, 0)
       const extra = Math.max(0, perMonth - totalMins)
 
@@ -253,6 +281,7 @@
       const data = await res.json()
       const cc = data.creditSummary
       ccData = cc.cards ?? []
+      renderMinInputs()
 
       document.getElementById('cc-total').textContent = fmts(cc.totalBalance)
       document.getElementById('cc-total').className = 'stat-value mono ' + utilColor(cc.totalUtilization)
