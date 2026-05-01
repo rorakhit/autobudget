@@ -10,7 +10,7 @@ import { linkHandler, linkTokenHandler, linkedAccountsHandler, linkExchangeHandl
 import { reviewTransactionsHandler, reviewCorrectHandler, merchantTransactionsHandler, correctTransactionHandler, confirmTransactionHandler, confirmMerchantHandler, toggleRecurringHandler, allTransactionsHandler } from './plaid/review.js'
 import { rulesPageHandler, listRulesHandler, createRuleHandler, deleteRuleHandler } from './plaid/rules.js'
 import { settingsDataHandler, renameAccountHandler, addCategoryHandler, deleteCategoryHandler, updateAprHandler, updateLoanHandler } from './plaid/settings.js'
-import { paycheckDataHandler, addPaycheckPatternHandler, removePaycheckPatternHandler, removeRecurringHandler, triggerPaycheckReportHandler } from './plaid/paycheck.js'
+import { paycheckDataHandler, addPaycheckPatternHandler, removePaycheckPatternHandler, removeRecurringHandler, triggerPaycheckReportHandler, recurringExportHandler } from './plaid/paycheck.js'
 import { appleCardStatusHandler, appleCardImportHandler, appleCardBalanceHandler } from './plaid/apple-card.js'
 import { homeStatsHandler } from './plaid/home.js'
 import { reportsPageHandler, reportsDataHandler, saveGoalsHandler, spendingPageHandler, spendingDataHandler, spendingCategoryHandler, spendingTransactionsHandler, creditPageHandler, creditDataHandler } from './plaid/reports.js'
@@ -96,6 +96,7 @@ app.post('/paycheck/add-pattern', addPaycheckPatternHandler)
 app.delete('/paycheck/remove-pattern/:id', removePaycheckPatternHandler)
 app.delete('/paycheck/remove-recurring/:id', removeRecurringHandler)
 app.post('/paycheck/trigger-report', triggerPaycheckReportHandler)
+app.get('/paycheck/recurring-export', recurringExportHandler)
 
 // Reports
 app.get('/reports', reportsPageHandler)

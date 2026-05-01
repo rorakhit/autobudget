@@ -314,8 +314,11 @@
       <button class="primary-btn" id="trigger-btn" onclick="triggerReport()">Run report now</button>
       <div id="trigger-status" style="font-size:0.82rem;color:var(--muted);min-height:18px;margin-top:10px;margin-bottom:32px"></div>
 
-      <div class="section-header" style="margin-bottom:12px"><span class="section-title">Recurring charges</span></div>
-      <p style="font-size:0.82rem;color:var(--muted);margin-bottom:16px">Transactions you've marked as recurring across all accounts. Claude uses these when allocating your paycheck. To add or remove a recurring charge, use the ↻ toggle in the Transactions tab.</p>
+      <div class="section-header" style="margin-bottom:12px">
+        <span class="section-title">Recurring charges</span>
+        <button onclick="exportRecurring()" style="padding:4px 12px;background:rgba(200,255,0,0.1);border:1px solid rgba(200,255,0,0.3);border-radius:var(--radius-sm);color:var(--accent);font-size:0.75rem;font-weight:700;cursor:pointer">↓ Export for Claude</button>
+      </div>
+      <p style="font-size:0.82rem;color:var(--muted);margin-bottom:16px">One row per merchant — deduplicated from all transactions you've marked ↻ recurring. Use the ↻ toggle in the Transactions tab to add or remove charges.</p>
       <div class="summary-bar" id="summary-bar" style="display:none">
         <div class="summary-item"><span class="summary-label">Total / mo</span><span class="summary-value" id="sum-total">—</span></div>
         <div class="summary-item"><span class="summary-label">Per paycheck</span><span class="summary-value" id="sum-period">—</span></div>
@@ -621,7 +624,10 @@
       }
     }
 
+    let recurringData = []
+
     function renderRecurring(recurring) {
+      recurringData = recurring
       const el = document.getElementById('recurring-list')
       if (!recurring.length) { el.innerHTML = '<div class="empty">No recurring charges. Mark transactions as recurring in the Transactions tab.</div>'; return }
       const total = recurring.reduce((s, r) => s + Number(r.average_amount ?? 0), 0)
@@ -632,10 +638,15 @@
         <div class="recurring-row">
           <div style="flex:1;min-width:0">
             <div class="recurring-name">${r.merchant_name}</div>
-            <div class="recurring-meta">${r.last_seen ? 'last ' + r.last_seen : ''}</div>
+            <div class="recurring-meta">${r.count} occurrence${r.count !== 1 ? 's' : ''} · last ${r.last_seen ?? '—'}</div>
           </div>
-          <span class="recurring-amt">${fmt(r.average_amount)}/mo</span>
+          <span class="recurring-amt">${fmt(r.average_amount)}/mo avg</span>
         </div>`).join('')
+    }
+
+    function exportRecurring() {
+      if (!recurringData.length) { alert('No recurring charges to export.'); return }
+      window.location.href = '/paycheck/recurring-export'
     }
 
     // ── SETTINGS ──────────────────────────────────────────────────────────────

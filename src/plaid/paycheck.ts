@@ -14,18 +14,57 @@ export async function paycheckPageHandler(req: FastifyRequest, reply: FastifyRep
   await reply.type('text/html').send(html)
 }
 
+async function getRecurringByMerchant() {
+  const { data: txs } = await db
+    .from('transactions')
+    .select('merchant_name, amount, date')
+    .eq('is_recurring', true)
+    .eq('is_income', false)
+    .order('date', { ascending: false })
+
+  const map = new Map<string, { merchant_name: string; total: number; count: number; last_seen: string; amounts: number[] }>()
+  for (const tx of txs ?? []) {
+    const key = tx.merchant_name ?? 'Unknown'
+    const existing = map.get(key)
+    if (!existing) {
+      map.set(key, { merchant_name: key, total: Number(tx.amount), count: 1, last_seen: tx.date, amounts: [Number(tx.amount)] })
+    } else {
+      existing.total += Number(tx.amount)
+      existing.count++
+      existing.amounts.push(Number(tx.amount))
+      if (tx.date > existing.last_seen) existing.last_seen = tx.date
+    }
+  }
+
+  return Array.from(map.values())
+    .map(r => ({ merchant_name: r.merchant_name, average_amount: r.total / r.count, last_seen: r.last_seen, count: r.count }))
+    .sort((a, b) => b.average_amount - a.average_amount)
+}
+
 export async function paycheckDataHandler(req: FastifyRequest, reply: FastifyReply) {
   if (!checkAuth(req, reply)) return
 
-  const [{ data: patterns }, { data: recurring }] = await Promise.all([
+  const [{ data: patterns }, recurring] = await Promise.all([
     db.from('paycheck_patterns').select('id, pattern').order('created_at'),
-    db.from('recurring_charges')
-      .select('id, merchant_name, average_amount, frequency, last_seen, account_id, accounts(name, mask)')
-      .eq('is_active', true)
-      .order('average_amount', { ascending: false }),
+    getRecurringByMerchant(),
   ])
 
-  await reply.send({ patterns: patterns ?? [], recurring: recurring ?? [] })
+  await reply.send({ patterns: patterns ?? [], recurring })
+}
+
+export async function recurringExportHandler(req: FastifyRequest, reply: FastifyReply) {
+  if (!checkAuth(req, reply)) return
+
+  const recurring = await getRecurringByMerchant()
+  const lines = ['Merchant,Average Amount,Last Seen,Occurrences']
+  for (const r of recurring) {
+    lines.push(`"${r.merchant_name.replace(/"/g, '""')}",${r.average_amount.toFixed(2)},${r.last_seen},${r.count}`)
+  }
+
+  await reply
+    .header('Content-Type', 'text/csv')
+    .header('Content-Disposition', 'attachment; filename="recurring-charges.csv"')
+    .send(lines.join('\n'))
 }
 
 export async function addPaycheckPatternHandler(req: FastifyRequest, reply: FastifyReply) {
