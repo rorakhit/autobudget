@@ -242,8 +242,19 @@ export async function handlePaycheckDetected(tx: Transaction): Promise<void> {
     .order('created_at', { ascending: false })
     .limit(1)
 
-  const periodStart = lastEvent?.[0]?.period_end ?? new Date(Date.now() - 14 * 24 * 60 * 60 * 1000).toISOString().split('T')[0]
+  const lastPeriodEnd = lastEvent?.[0]?.period_end
+  const defaultStart = new Date(Date.now() - 14 * 24 * 60 * 60 * 1000).toISOString().split('T')[0]
+  let periodStart = defaultStart
+  if (lastPeriodEnd) {
+    const d = new Date(lastPeriodEnd)
+    d.setUTCDate(d.getUTCDate() + 1)
+    periodStart = d.toISOString().split('T')[0]
+  }
   const periodEnd = tx.date
+  // Guard: if period collapsed (same-day or backwards), fall back to 14 days prior
+  if (periodStart >= periodEnd) {
+    periodStart = new Date(new Date(periodEnd).getTime() - 14 * 24 * 60 * 60 * 1000).toISOString().split('T')[0]
+  }
 
   const agg = await getAggregatesForPeriod(periodStart, periodEnd, 'biweekly')
   const [narrative, savingsRec, allocation] = await Promise.all([

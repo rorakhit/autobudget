@@ -14,6 +14,14 @@ export async function reportsPageHandler(req: FastifyRequest, reply: FastifyRepl
   await reply.type('text/html').send(html)
 }
 
+export async function deleteInsightHandler(req: FastifyRequest, reply: FastifyReply) {
+  if (!checkAuth(req, reply)) return
+  const { id } = req.params as { id: string }
+  const { error } = await db.from('insights').delete().eq('id', id)
+  if (error) return reply.code(500).send({ error: error.message })
+  await reply.send({ ok: true })
+}
+
 export async function saveGoalsHandler(req: FastifyRequest, reply: FastifyReply) {
   if (!checkAuth(req, reply)) return
 

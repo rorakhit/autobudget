@@ -223,6 +223,7 @@
             </div>
             <div style="display:flex;align-items:center;gap:10px">
               ${hasGoals ? `<span style="font-size:0.7rem;color:var(--accent);font-weight:700">GOALS SET</span>` : ''}
+              <button onclick="deleteInsight(event,'${r.id}',${i})" style="padding:3px 9px;background:transparent;border:1px solid var(--border2);border-radius:5px;color:var(--muted);font-size:0.72rem;cursor:pointer" title="Delete this report">✕</button>
               <span class="report-arrow">›</span>
             </div>
           </div>
@@ -280,6 +281,16 @@
           </div>
         </div>`
       }).join('')
+    }
+
+    async function deleteInsight(e, id, i) {
+      e.stopPropagation()
+      if (!confirm('Delete this report?')) return
+      const res = await fetch(`/reports/insight/${id}`, { method: 'DELETE' })
+      if (res.ok) {
+        allReports = allReports.filter(r => r.id !== id)
+        renderReports()
+      }
     }
 
     function toggleRow(i) {

@@ -13,7 +13,7 @@ import { settingsDataHandler, renameAccountHandler, addCategoryHandler, deleteCa
 import { paycheckDataHandler, addPaycheckPatternHandler, removePaycheckPatternHandler, removeRecurringHandler, triggerPaycheckReportHandler, recurringExportHandler } from './plaid/paycheck.js'
 import { appleCardStatusHandler, appleCardImportHandler, appleCardBalanceHandler } from './plaid/apple-card.js'
 import { homeStatsHandler } from './plaid/home.js'
-import { reportsPageHandler, reportsDataHandler, saveGoalsHandler, spendingPageHandler, spendingDataHandler, spendingCategoryHandler, spendingTransactionsHandler, creditPageHandler, creditDataHandler } from './plaid/reports.js'
+import { reportsPageHandler, reportsDataHandler, saveGoalsHandler, deleteInsightHandler, spendingPageHandler, spendingDataHandler, spendingCategoryHandler, spendingTransactionsHandler, creditPageHandler, creditDataHandler } from './plaid/reports.js'
 import { authHandler, logoutHandler } from './auth.js'
 import { startCronJobs } from './reports/cron.js'
 
@@ -102,6 +102,7 @@ app.get('/paycheck/recurring-export', recurringExportHandler)
 app.get('/reports', reportsPageHandler)
 app.get('/reports/data', reportsDataHandler)
 app.post('/reports/save-goals', saveGoalsHandler)
+app.delete('/reports/insight/:id', deleteInsightHandler)
 
 // Spending
 app.get('/spending', spendingPageHandler)
