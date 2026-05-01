@@ -15,12 +15,34 @@
     }
     .range-tab.active { background: var(--accent); color: #000; border-color: var(--accent); }
 
-    .cat-bar-row { display: flex; align-items: center; gap: 12px; margin-bottom: 10px; }
+    .cat-bar-row {
+      display: flex; align-items: center; gap: 12px; margin-bottom: 2px;
+      padding: 6px 8px; border-radius: 6px; cursor: pointer; transition: background 0.1s;
+    }
+    .cat-bar-row:hover { background: var(--bg1); }
+    .cat-bar-row.open { background: var(--bg1); }
     .cat-label { font-size: 0.82rem; color: var(--muted); width: 150px; flex-shrink: 0; }
+    .cat-bar-row.open .cat-label { color: var(--text); }
     .cat-bar-track { flex: 1; height: 6px; background: var(--bg2); border-radius: 99px; overflow: hidden; }
     .cat-bar-fill { height: 100%; border-radius: 99px; background: var(--accent); opacity: 0.8; }
     .cat-total { font-size: 0.82rem; font-weight: 700; width: 90px; text-align: right; }
     .cat-pct { font-size: 0.72rem; color: var(--muted); width: 36px; text-align: right; }
+    .cat-arrow { font-size: 0.7rem; color: var(--muted); width: 12px; flex-shrink: 0; transition: transform 0.15s; }
+    .cat-bar-row.open .cat-arrow { transform: rotate(90deg); }
+
+    .cat-txs {
+      display: none; margin: 0 8px 8px 8px;
+      border: 1px solid var(--border); border-radius: 6px; overflow: hidden;
+    }
+    .cat-txs.open { display: block; }
+    .cat-tx-row { display: flex; align-items: center; justify-content: space-between;
+      padding: 8px 12px; border-bottom: 1px solid var(--border); font-size: 0.82rem; }
+    .cat-tx-row:last-child { border-bottom: none; }
+    .cat-tx-merchant { font-weight: 600; color: var(--text); flex: 1; min-width: 0;
+      white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+    .cat-tx-date { color: var(--muted); font-size: 0.75rem; margin: 0 12px; flex-shrink: 0; }
+    .cat-tx-amt { font-weight: 700; flex-shrink: 0; }
+    .cat-txs-loading { padding: 12px; text-align: center; color: var(--muted); font-size: 0.82rem; }
 
     .tx-table td:last-child, .tx-table th:last-child { text-align: right; }
     .tx-merchant { font-weight: 600; }
@@ -54,11 +76,16 @@
       <p>Category breakdown, biggest purchases, and recurring charges</p>
     </div>
 
-    <div class="range-tabs">
-      <button class="range-tab" onclick="setRange(14, this)">2 weeks</button>
-      <button class="range-tab active" onclick="setRange(30, this)">30 days</button>
-      <button class="range-tab" onclick="setRange(90, this)">90 days</button>
-      <button class="range-tab" onclick="setRange(365, this)">1 year</button>
+    <div style="display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap;gap:8px;margin-bottom:24px">
+      <div class="range-tabs" style="margin-bottom:0">
+        <button class="range-tab" onclick="setRange(14, this)">2 weeks</button>
+        <button class="range-tab active" onclick="setRange(30, this)">30 days</button>
+        <button class="range-tab" onclick="setRange(90, this)">90 days</button>
+        <button class="range-tab" onclick="setRange(365, this)">1 year</button>
+      </div>
+      <button onclick="exportAllTx()" style="padding:5px 14px;background:rgba(200,255,0,0.1);border:1px solid rgba(200,255,0,0.3);border-radius:var(--radius-sm);color:var(--accent);font-size:0.78rem;font-weight:700;cursor:pointer">
+        ↓ Export all for Claude
+      </button>
     </div>
 
     <div class="stat-grid stat-grid-3 mb-16" id="summary-stats">
@@ -102,6 +129,7 @@
     }
 
     async function load() {
+      openCats.clear()
       const res = await fetch(`/spending/data?days=${days}`)
       if (res.status === 403) { location.href = '/'; return }
       const data = await res.json()
@@ -114,12 +142,18 @@
       const maxCat = cats[0]?.[1] ?? 1
       const totalSpend = data.totalSpend || 1
       document.getElementById('cat-list').innerHTML = cats.length
-        ? cats.map(([cat, amt]) => `
-          <div class="cat-bar-row">
-            <span class="cat-label">${cat}</span>
-            <div class="cat-bar-track"><div class="cat-bar-fill" style="width:${Math.round(amt/maxCat*100)}%"></div></div>
-            <span class="cat-total">${fmt(amt)}</span>
-            <span class="cat-pct">${Math.round(amt/totalSpend*100)}%</span>
+        ? cats.map(([cat, amt], idx) => `
+          <div>
+            <div class="cat-bar-row" onclick="toggleCat(${idx}, ${JSON.stringify(cat).replace(/"/g, '&quot;')})">
+              <span class="cat-arrow">›</span>
+              <span class="cat-label">${cat}</span>
+              <div class="cat-bar-track"><div class="cat-bar-fill" style="width:${Math.round(amt/maxCat*100)}%"></div></div>
+              <span class="cat-total">${fmt(amt)}</span>
+              <span class="cat-pct">${Math.round(amt/totalSpend*100)}%</span>
+            </div>
+            <div class="cat-txs" id="cat-txs-${idx}">
+              <div class="cat-txs-loading">Loading…</div>
+            </div>
           </div>`).join('')
         : '<div class="empty">No spend data.</div>'
 
@@ -145,6 +179,81 @@
             <td class="text-right mono">${fmt(t.amount)}</td>
           </tr>`).join('')
         : '<tr><td colspan="4" style="text-align:center;color:var(--muted)">No transactions.</td></tr>'
+    }
+
+    async function exportAllTx() {
+      const res = await fetch(`/spending/transactions?days=${days}`)
+      const txs = await res.json()
+      if (!txs.length) { alert('No transactions in this period.'); return }
+      const lines = ['Date,Merchant,Category,Amount']
+      for (const t of txs) {
+        lines.push(`${t.date},"${(t.merchant_name ?? '').replace(/"/g, '""')}","${(t.category ?? 'Other').replace(/"/g, '""')}",${t.amount}`)
+      }
+      const csv = lines.join('\n')
+      const blob = new Blob([csv], { type: 'text/csv' })
+      const url = URL.createObjectURL(blob)
+      const a = document.createElement('a')
+      a.href = url
+      a.download = `spending-${days}d.csv`
+      a.click()
+      URL.revokeObjectURL(url)
+    }
+
+    const openCats = new Set()
+
+    async function toggleCat(idx, cat) {
+      const row = document.querySelector(`#cat-txs-${idx}`).previousElementSibling
+      const txsEl = document.getElementById(`cat-txs-${idx}`)
+      const isOpen = openCats.has(idx)
+
+      if (isOpen) {
+        openCats.delete(idx)
+        row.classList.remove('open')
+        txsEl.classList.remove('open')
+        return
+      }
+
+      openCats.add(idx)
+      row.classList.add('open')
+      txsEl.classList.add('open')
+
+      if (txsEl.dataset.loaded) return
+      txsEl.dataset.loaded = '1'
+
+      const res = await fetch(`/spending/category?days=${days}&category=${encodeURIComponent(cat)}`)
+      const txs = await res.json()
+
+      if (!txs.length) {
+        txsEl.innerHTML = '<div class="cat-txs-loading">No transactions.</div>'
+        return
+      }
+
+      txsEl.innerHTML = txs.map(t => `
+        <div class="cat-tx-row">
+          <span class="cat-tx-merchant">${t.merchant_name ?? '—'}</span>
+          <span class="cat-tx-date">${t.date}</span>
+          <span class="cat-tx-amt">${fmt(t.amount)}</span>
+        </div>`).join('') +
+        `<div class="cat-tx-row" style="justify-content:flex-end">
+          <button onclick="exportCatCsv(${JSON.stringify(cat).replace(/"/g, '&quot;')}, ${JSON.stringify(txs).replace(/"/g, '&quot;')})"
+            style="padding:4px 10px;background:rgba(200,255,0,0.1);border:1px solid rgba(200,255,0,0.3);
+            border-radius:4px;color:var(--accent);font-size:0.72rem;font-weight:700;cursor:pointer">
+            ↓ Export for Claude
+          </button>
+        </div>`
+    }
+
+    function exportCatCsv(cat, txs) {
+      const lines = ['Date,Merchant,Amount']
+      for (const t of txs) lines.push(`${t.date},"${(t.merchant_name ?? '').replace(/"/g, '""')}",${t.amount}`)
+      const csv = lines.join('\n')
+      const blob = new Blob([csv], { type: 'text/csv' })
+      const url = URL.createObjectURL(blob)
+      const a = document.createElement('a')
+      a.href = url
+      a.download = `${cat.toLowerCase().replace(/\s+/g, '-')}-spending.csv`
+      a.click()
+      URL.revokeObjectURL(url)
     }
 
     load()

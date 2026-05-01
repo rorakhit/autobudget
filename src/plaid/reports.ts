@@ -68,6 +68,43 @@ export async function reportsDataHandler(req: FastifyRequest, reply: FastifyRepl
   await reply.send(enriched)
 }
 
+export async function spendingTransactionsHandler(req: FastifyRequest, reply: FastifyReply) {
+  if (!checkAuth(req, reply)) return
+
+  const { days: daysStr } = req.query as { days?: string }
+  const days = Math.min(Math.max(parseInt(daysStr ?? '30', 10), 1), 365)
+  const periodStart = new Date(Date.now() - days * 24 * 60 * 60 * 1000).toISOString().split('T')[0]
+
+  const { data: txs } = await db
+    .from('transactions')
+    .select('merchant_name, amount, date, category')
+    .eq('is_income', false)
+    .gte('date', periodStart)
+    .order('date', { ascending: false })
+
+  await reply.send(txs ?? [])
+}
+
+export async function spendingCategoryHandler(req: FastifyRequest, reply: FastifyReply) {
+  if (!checkAuth(req, reply)) return
+
+  const { days: daysStr, category } = req.query as { days?: string; category?: string }
+  if (!category) return reply.code(400).send({ error: 'category required' })
+
+  const days = Math.min(Math.max(parseInt(daysStr ?? '30', 10), 1), 365)
+  const periodStart = new Date(Date.now() - days * 24 * 60 * 60 * 1000).toISOString().split('T')[0]
+
+  const { data: txs } = await db
+    .from('transactions')
+    .select('merchant_name, amount, date, category')
+    .eq('is_income', false)
+    .eq('category', category)
+    .gte('date', periodStart)
+    .order('date', { ascending: false })
+
+  await reply.send(txs ?? [])
+}
+
 export async function spendingPageHandler(req: FastifyRequest, reply: FastifyReply) {
   if (!checkAuth(req, reply)) return
   const html = readFileSync(join(__dirname, '../../public/spending.html'), 'utf8')
