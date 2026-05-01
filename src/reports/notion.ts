@@ -74,7 +74,7 @@ async function replacePageContent(pageId: string, blocks: object[]): Promise<voi
 
 function buildHomepageBlocks(): object[] {
   return [
-    h1('📊 AutoBudget'),
+    h1('📊 GhostPaper'),
     para('Personal automated budget tracker — real-time transaction categorization, credit health tracking, and savings planning.'),
     divider(),
     h2('Navigation'),

@@ -1,4 +1,4 @@
-<h1><img src="public/icon.svg" height="32" alt="" /> AutoBudget</h1>
+<h1><img src="public/icon.svg" height="32" alt="" /> GhostPaper</h1>
 
 Fully automated personal finance system. Ingests real-time bank transactions via Plaid webhooks, categorizes them with Claude, and surfaces spending insights through Gmail alerts and a live Notion dashboard.
 
@@ -67,7 +67,7 @@ Seven pages updated automatically:
 - [Plaid](https://plaid.com) account (Transactions product)
 - [Anthropic](https://console.anthropic.com) API key
 - [Notion](https://notion.so) integration with a root page
-- Gmail account with an [app password](https://myaccount.google.com/apppasswords)
+- Gmail account with OAuth2 credentials (Google Cloud Console)
 
 ### 2. Database
 
@@ -101,9 +101,11 @@ ANTHROPIC_API_KEY=
 NOTION_TOKEN=                 # integration access token
 NOTION_ROOT_PAGE_ID=          # ID from your root Notion page URL
 
-# Gmail
+# Gmail (OAuth2)
 GMAIL_USER=your@gmail.com
-GMAIL_APP_PASSWORD=
+GMAIL_CLIENT_ID=
+GMAIL_CLIENT_SECRET=
+GMAIL_REFRESH_TOKEN=
 
 # Security
 SETUP_SECRET=                 # random string — protects /link and /setup routes

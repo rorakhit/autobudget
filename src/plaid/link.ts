@@ -17,7 +17,7 @@ const __dirname = dirname(fileURLToPath(import.meta.url))
 async function createLinkToken() {
   const response = await plaidClient.linkTokenCreate({
     user: { client_user_id: 'ro' },
-    client_name: 'AutoBudget',
+    client_name: 'GhostPaper',
     products: [Products.Transactions],
     country_codes: [CountryCode.Us],
     language: 'en',
@@ -289,7 +289,7 @@ export async function reauthTokenHandler(req: FastifyRequest, reply: FastifyRepl
 
   const response = await plaidClient.linkTokenCreate({
     user: { client_user_id: 'ro' },
-    client_name: 'AutoBudget',
+    client_name: 'GhostPaper',
     country_codes: [CountryCode.Us],
     language: 'en',
     access_token: item.access_token,

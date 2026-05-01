@@ -31,7 +31,7 @@ function formatAlertEmail(payload: AlertPayload): { subject: string; text: strin
     paycheck_detected: `💰 Paycheck received: $${data['paycheckAmount']}`,
   }
 
-  const subject = subjects[type] ?? `AutoBudget: ${type}`
+  const subject = subjects[type] ?? `GhostPaper: ${type}`
   const body = enrichedContext
     ? `${subject}\n\n${enrichedContext}`
     : subject
@@ -46,7 +46,7 @@ export async function sendAlert(payload: AlertPayload): Promise<void> {
     await transport.sendMail({
       from: process.env.GMAIL_USER,
       to: RECIPIENT,
-      subject: `[AutoBudget] ${subject}`,
+      subject: `[GhostPaper] ${subject}`,
       text,
     })
   } catch (err) {
@@ -60,7 +60,7 @@ export async function sendEmail(subject: string, body: string): Promise<void> {
     await transport.sendMail({
       from: process.env.GMAIL_USER,
       to: RECIPIENT,
-      subject: `[AutoBudget] ${subject}`,
+      subject: `[GhostPaper] ${subject}`,
       text: body,
     })
   } catch (err) {
