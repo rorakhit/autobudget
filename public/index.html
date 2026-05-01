@@ -14,18 +14,18 @@
 
     .stats-band { margin: 24px 0; }
 
-    .nav-grid { display: grid; grid-template-columns: repeat(3, 1fr); gap: 10px; }
-    @media (max-width: 560px) { .nav-grid { grid-template-columns: repeat(2, 1fr); } }
+    .nav-grid { display: grid; grid-template-columns: repeat(4, 1fr); gap: 10px; }
+    @media (max-width: 640px) { .nav-grid { grid-template-columns: repeat(2, 1fr); } }
     .nc {
       display: block; text-decoration: none; color: var(--text);
       background: var(--bg1); border: 1px solid var(--border);
-      border-radius: var(--radius); padding: 16px;
+      border-radius: var(--radius); padding: 20px 18px;
       transition: border-color 0.15s, background 0.15s;
     }
     .nc:hover { border-color: var(--accent); background: var(--bg2); }
-    .nc-icon { font-size: 1.2rem; margin-bottom: 8px; }
-    .nc-title { font-size: 0.88rem; font-weight: 700; margin-bottom: 2px; }
-    .nc-desc { font-size: 0.74rem; color: var(--muted); line-height: 1.4; }
+    .nc-icon { font-size: 1.4rem; margin-bottom: 10px; }
+    .nc-title { font-size: 0.92rem; font-weight: 700; margin-bottom: 4px; }
+    .nc-desc { font-size: 0.75rem; color: var(--muted); line-height: 1.45; }
     .nc-badge {
       display: inline-block; margin-top: 6px;
       background: rgba(255,77,77,0.15); color: var(--red);
@@ -128,10 +128,10 @@
           <div class="nc-title">Credit</div>
           <div class="nc-desc">Utilization, APRs &amp; payoff plans</div>
         </a>
-        <a class="nc" href="/accounts" id="nc-review">
+        <a class="nc" href="/accounts" id="nc-accounts">
           <div class="nc-icon">⚙️</div>
           <div class="nc-title">Accounts</div>
-          <div class="nc-desc">Transactions, rules, paycheck &amp; settings</div>
+          <div id="nc-health" style="margin-top:6px;display:flex;flex-direction:column;gap:3px"></div>
         </a>
       </div>
     </div>
@@ -170,17 +170,27 @@
       document.getElementById('s-review').textContent = rev
       document.getElementById('s-review').className = 'stat-value mono ' + (rev > 0 ? 'orange' : '')
 
-      if (rev > 0) {
-        const card = document.getElementById('nc-review')
-        if (!card.querySelector('.nc-badge')) {
-          const b = document.createElement('div')
-          b.className = 'nc-badge'
-          b.textContent = `${rev} pending`
-          card.appendChild(b)
-        }
-      }
-
       document.getElementById('stats-band').classList.add('unlocked')
+      loadInstitutionHealth()
+    }
+
+    async function loadInstitutionHealth() {
+      const el = document.getElementById('nc-health')
+      try {
+        const items = await fetch('/link/status').then(r => r.json())
+        if (!items.length) {
+          el.innerHTML = '<span style="font-size:0.75rem;color:var(--muted)">No accounts linked</span>'
+          return
+        }
+        el.innerHTML = items.map(item => `
+          <div style="display:flex;align-items:center;gap:6px;font-size:0.75rem">
+            <span style="width:7px;height:7px;border-radius:50%;background:${item.healthy ? 'var(--green)' : 'var(--red)'};flex-shrink:0;display:inline-block"></span>
+            <span style="color:var(--text);font-weight:600;white-space:nowrap;overflow:hidden;text-overflow:ellipsis">${item.institution_name}</span>
+            ${!item.healthy ? `<span style="color:var(--red);font-size:0.7rem;flex-shrink:0">needs reauth</span>` : ''}
+          </div>`).join('')
+      } catch {
+        el.innerHTML = '<span style="font-size:0.75rem;color:var(--muted)">—</span>'
+      }
     }
 
     async function login() {
