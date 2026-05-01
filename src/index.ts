@@ -12,6 +12,7 @@ import { settingsPageHandler, settingsDataHandler, renameAccountHandler, addCate
 import { paycheckPageHandler, paycheckDataHandler, setPaycheckAccountHandler, updateRecurringAllocationHandler, removeRecurringHandler, triggerPaycheckReportHandler } from './plaid/paycheck.js'
 import { appleCardPageHandler, appleCardStatusHandler, appleCardImportHandler } from './plaid/apple-card.js'
 import { homeStatsHandler } from './plaid/home.js'
+import { reportsPageHandler, reportsDataHandler, spendingPageHandler, spendingDataHandler, creditPageHandler, creditDataHandler } from './plaid/reports.js'
 import { authHandler, logoutHandler } from './auth.js'
 import { startCronJobs } from './reports/cron.js'
 
@@ -96,6 +97,12 @@ app.post('/paycheck/trigger-report', triggerPaycheckReportHandler)
 app.get('/apple-card', appleCardPageHandler)
 app.get('/apple-card/status', appleCardStatusHandler)
 app.post('/apple-card/import', appleCardImportHandler)
+app.get('/reports', reportsPageHandler)
+app.get('/reports/data', reportsDataHandler)
+app.get('/spending', spendingPageHandler)
+app.get('/spending/data', spendingDataHandler)
+app.get('/credit', creditPageHandler)
+app.get('/credit/data', creditDataHandler)
 
 const port = Number(process.env.PORT ?? 3000)
 await app.listen({ port, host: '0.0.0.0' })

@@ -1,7 +1,6 @@
 import { anthropic } from '../categorize/claude.js'
 import { db } from '../db/client.js'
 import { getAggregatesForPeriod } from './aggregate.js'
-import { writeNotionReport, updateNotionDashboards } from './notion.js'
 import { sendEmail } from '../alerts/gmail.js'
 import type { PeriodAggregates, Transaction } from '../types.js'
 
@@ -271,9 +270,6 @@ export async function handlePaycheckDetected(tx: Transaction): Promise<void> {
     notes: savingsRec,
   })
 
-  const notionPageUrl = await writeNotionReport(agg, narrative, 'biweekly')
-  await updateNotionDashboards(agg)
-
   if (agg.creditSummary.trend === 'growing') {
     const { data: priorSnapshots } = await db
       .from('balance_snapshots')
@@ -309,24 +305,27 @@ export async function handlePaycheckDetected(tx: Transaction): Promise<void> {
     .map(([cat, amt]) => `${cat}: $${amt.toFixed(2)}`)
     .join(', ')
 
+  const baseUrl = process.env.APP_URL ?? 'https://rorakhit-autobudget.up.railway.app'
   const emailBody = [
-    `Paycheck received: $${tx.amount.toFixed(2)}`,
+    `Paycheck received: $${Number(tx.amount).toFixed(2)}`,
     '',
-    `Period summary (${periodStart} → ${periodEnd}):`,
-    `  Total spend: $${agg.totalSpend.toFixed(2)}`,
-    `  Top categories: ${topCategories}`,
+    `Period: ${periodStart} → ${periodEnd}`,
+    `  Spend: $${agg.totalSpend.toFixed(2)}   Top: ${topCategories}`,
     `  Credit utilization: ${agg.creditSummary.totalUtilization}%`,
     '',
-    `How to allocate this paycheck:`,
+    `── Paycheck allocation ──`,
     allocation,
     '',
-    `Savings recommendation:`,
+    `── Savings recommendation ──`,
     savingsRec,
     '',
-    `Full report: ${notionPageUrl}`,
+    `── Analysis ──`,
+    narrative,
+    '',
+    `Full report: ${baseUrl}/reports`,
   ].join('\n')
 
-  await sendEmail(`Paycheck received: $${tx.amount.toFixed(2)}`, emailBody)
+  await sendEmail(`Paycheck: $${Number(tx.amount).toFixed(2)}`, emailBody)
 }
 
 export async function runMonthlyReport(year: number, month: number): Promise<void> {
@@ -344,8 +343,30 @@ export async function runMonthlyReport(year: number, month: number): Promise<voi
     raw_analysis: narrative,
   })
 
-  await writeNotionReport(agg, narrative, 'monthly')
-  await updateNotionDashboards(agg)
+  const topCategories = Object.entries(agg.categoryBreakdown)
+    .sort((a, b) => b[1] - a[1])
+    .slice(0, 5)
+    .map(([cat, amt]) => `  ${cat}: $${amt.toFixed(2)}`)
+    .join('\n')
+
+  const baseUrl = process.env.APP_URL ?? 'https://rorakhit-autobudget.up.railway.app'
+  const emailBody = [
+    `${year}-${String(month).padStart(2, '0')} Monthly Report`,
+    '',
+    `Income: $${agg.totalIncome.toFixed(2)}   Spend: $${agg.totalSpend.toFixed(2)}   Saved: $${agg.netSavings.toFixed(2)} (${agg.savingsRate}%)`,
+    '',
+    `Top categories:`,
+    topCategories,
+    '',
+    `Credit utilization: ${agg.creditSummary.totalUtilization}%  Interest/mo: $${agg.creditSummary.totalMonthlyInterest.toFixed(2)}`,
+    '',
+    `── Analysis ──`,
+    narrative,
+    '',
+    `Full report: ${baseUrl}/reports`,
+  ].join('\n')
+
+  await sendEmail(`Monthly Report: ${year}-${String(month).padStart(2, '0')}`, emailBody)
 }
 
 export async function runYearlyReport(year: number): Promise<void> {
@@ -365,21 +386,20 @@ export async function runYearlyReport(year: number): Promise<void> {
     raw_analysis: narrative,
   })
 
-  const notionPageUrl = await writeNotionReport(agg, narrative, 'yearly')
-
-  const highlights = [
+  const baseUrl = process.env.APP_URL ?? 'https://rorakhit-autobudget.up.railway.app'
+  const emailBody = [
     `${year} Year in Review`,
     '',
     `Total income: $${agg.totalIncome.toFixed(2)}`,
     `Total spend: $${agg.totalSpend.toFixed(2)}`,
     `Net savings: $${agg.netSavings.toFixed(2)}`,
-    `Average savings rate: ${agg.savingsRate}%`,
-    `Total interest paid: $${agg.creditSummary.totalMonthlyInterest.toFixed(2)}/mo average`,
+    `Savings rate: ${agg.savingsRate}%`,
+    `Avg monthly interest: $${agg.creditSummary.totalMonthlyInterest.toFixed(2)}`,
     '',
-    `Full report: ${notionPageUrl}`,
+    narrative,
     '',
-    narrative.split('\n').slice(0, 6).join('\n'),
+    `Full report: ${baseUrl}/reports`,
   ].join('\n')
 
-  await sendEmail(`${year} Year in Review`, highlights)
+  await sendEmail(`${year} Year in Review`, emailBody)
 }

@@ -1,0 +1,179 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <link rel="icon" href="/public/icon.png" type="image/png">
+  <title>GhostPaper — Credit</title>
+  <link rel="stylesheet" href="/public/style.css">
+  <style>
+    .credit-card {
+      background: var(--bg1); border: 1px solid var(--border);
+      border-radius: var(--radius); padding: 20px; margin-bottom: 10px;
+    }
+    .credit-card-header { display: flex; justify-content: space-between; align-items: flex-start; margin-bottom: 14px; }
+    .credit-card-name { font-size: 1rem; font-weight: 700; }
+    .credit-card-mask { font-size: 0.75rem; color: var(--muted); margin-top: 2px; }
+    .util-row { display: flex; justify-content: space-between; font-size: 0.8rem; color: var(--muted); margin-bottom: 6px; }
+    .util-row span { font-weight: 700; color: var(--text); }
+    .credit-stats { display: grid; grid-template-columns: repeat(3, 1fr); gap: 1px; background: var(--border); border-radius: 8px; overflow: hidden; margin-top: 14px; }
+    .credit-stat { background: var(--bg2); padding: 10px 14px; }
+    .credit-stat-label { font-size: 0.65rem; color: var(--muted); text-transform: uppercase; letter-spacing: 0.07em; margin-bottom: 3px; }
+    .credit-stat-value { font-size: 0.95rem; font-weight: 700; }
+
+    .loan-card {
+      background: var(--bg1); border: 1px solid var(--border);
+      border-radius: var(--radius); padding: 20px; margin-bottom: 10px;
+    }
+    .loan-header { display: flex; justify-content: space-between; margin-bottom: 12px; }
+    .loan-name { font-size: 0.95rem; font-weight: 700; }
+    .loan-sub { font-size: 0.75rem; color: var(--muted); margin-top: 2px; }
+    .loan-stats { display: grid; grid-template-columns: repeat(3, 1fr); gap: 1px; background: var(--border); border-radius: 8px; overflow: hidden; }
+    .loan-stat { background: var(--bg2); padding: 10px 14px; }
+    .loan-stat-label { font-size: 0.65rem; color: var(--muted); text-transform: uppercase; letter-spacing: 0.07em; margin-bottom: 3px; }
+    .loan-stat-value { font-size: 0.88rem; font-weight: 700; }
+
+    .trend-chip {
+      display: inline-flex; align-items: center; gap: 5px;
+      padding: 3px 10px; border-radius: 99px; font-size: 0.72rem; font-weight: 700;
+    }
+    .trend-growing { background: rgba(255,77,77,0.12); color: var(--red); }
+    .trend-shrinking { background: rgba(0,230,118,0.12); color: var(--green); }
+    .trend-stable { background: rgba(200,255,0,0.12); color: var(--accent); }
+    .trend-unknown { background: var(--bg2); color: var(--muted); }
+  </style>
+</head>
+<body>
+  <nav class="nav">
+    <a class="nav-brand" href="/"><img src="/public/icon.png" alt="GhostPaper"> GhostPaper</a>
+    <div class="nav-links">
+      <a class="nav-link" href="/">Home</a>
+      <a class="nav-link" href="/reports">Reports</a>
+      <a class="nav-link" href="/spending">Spending</a>
+      <a class="nav-link active" href="/credit">Credit</a>
+    </div>
+    <div class="nav-right"></div>
+  </nav>
+
+  <div class="page">
+    <div class="page-title">
+      <h1>Credit</h1>
+      <p>Utilization, interest costs, and payoff projections</p>
+    </div>
+
+    <div class="stat-grid stat-grid-4 mb-16" id="cc-summary" style="margin-bottom:28px">
+      <div class="stat-cell"><span class="stat-label">Total balance</span><span class="stat-value mono" id="cc-total">—</span></div>
+      <div class="stat-cell"><span class="stat-label">Total limit</span><span class="stat-value mono" id="cc-limit">—</span></div>
+      <div class="stat-cell"><span class="stat-label">Utilization</span><span class="stat-value mono" id="cc-util">—</span></div>
+      <div class="stat-cell"><span class="stat-label">Interest / mo</span><span class="stat-value mono" id="cc-interest">—</span></div>
+    </div>
+
+    <section>
+      <div class="section-header">
+        <span class="section-title">Credit cards</span>
+        <span id="cc-trend"></span>
+      </div>
+      <div id="cc-cards"><div class="empty">Loading…</div></div>
+    </section>
+
+    <section>
+      <div class="section-header"><span class="section-title">Loans</span></div>
+      <div id="loan-cards"><div class="empty">Loading…</div></div>
+    </section>
+  </div>
+
+  <script>
+    const fmt = n => '$' + Math.abs(n).toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })
+    const fmts = n => '$' + Math.abs(n).toLocaleString('en-US', { maximumFractionDigits: 0 })
+
+    function utilColor(u) { return u >= 50 ? 'red' : u >= 30 ? 'orange' : 'green' }
+    function barColor(u) { return u >= 50 ? 'red' : u >= 30 ? 'orange' : 'green' }
+
+    function trendChip(t) {
+      const map = { growing: ['trend-growing','↑ Growing'], shrinking: ['trend-shrinking','↓ Shrinking'], stable: ['trend-stable','→ Stable'], unknown: ['trend-unknown','Unknown'] }
+      const [cls, label] = map[t] ?? map.unknown
+      return `<span class="trend-chip ${cls}">${label}</span>`
+    }
+
+    async function load() {
+      const res = await fetch('/credit/data')
+      if (res.status === 403) { location.href = '/'; return }
+      const data = await res.json()
+      const cc = data.creditSummary
+
+      document.getElementById('cc-total').textContent = fmts(cc.totalBalance)
+      document.getElementById('cc-total').className = 'stat-value mono ' + utilColor(cc.totalUtilization)
+      document.getElementById('cc-limit').textContent = fmts(cc.totalLimit)
+      document.getElementById('cc-util').textContent = cc.totalUtilization + '%'
+      document.getElementById('cc-util').className = 'stat-value mono ' + utilColor(cc.totalUtilization)
+      document.getElementById('cc-interest').textContent = fmt(cc.totalMonthlyInterest)
+      document.getElementById('cc-interest').className = 'stat-value mono ' + (cc.totalMonthlyInterest > 50 ? 'orange' : '')
+      document.getElementById('cc-trend').innerHTML = trendChip(cc.trend)
+
+      document.getElementById('cc-cards').innerHTML = cc.cards.length
+        ? cc.cards.sort((a,b)=>b.utilization - a.utilization).map(c => `
+          <div class="credit-card">
+            <div class="credit-card-header">
+              <div>
+                <div class="credit-card-name">${c.name}</div>
+                ${c.mask ? `<div class="credit-card-mask">···${c.mask}</div>` : ''}
+              </div>
+              <span class="badge badge-${utilColor(c.utilization)}">${c.utilization}%</span>
+            </div>
+            <div class="util-row">
+              <span>Balance <span>${fmt(c.balance)}</span></span>
+              <span>Limit <span>${fmt(c.limit)}</span></span>
+            </div>
+            <div class="progress">
+              <div class="progress-fill ${barColor(c.utilization)}" style="width:${Math.min(c.utilization,100)}%"></div>
+            </div>
+            <div class="credit-stats">
+              <div class="credit-stat">
+                <div class="credit-stat-label">APR</div>
+                <div class="credit-stat-value">${c.apr}%${c.isVariableRate ? ' <span style="color:var(--muted);font-size:0.7rem">variable</span>' : ''}</div>
+              </div>
+              <div class="credit-stat">
+                <div class="credit-stat-label">Interest / mo</div>
+                <div class="credit-stat-value ${c.monthlyInterest > 20 ? 'text-orange' : ''}">${fmt(c.monthlyInterest)}</div>
+              </div>
+              <div class="credit-stat">
+                <div class="credit-stat-label">Payoff est.</div>
+                <div class="credit-stat-value">${c.payoffMonths > 0 ? c.payoffMonths + ' mo' : '—'}</div>
+              </div>
+            </div>
+          </div>`).join('')
+        : '<div class="empty">No credit cards linked.</div>'
+
+      const loans = data.loanSummary?.loans ?? []
+      document.getElementById('loan-cards').innerHTML = loans.length
+        ? loans.map(l => `
+          <div class="loan-card">
+            <div class="loan-header">
+              <div>
+                <div class="loan-name">${l.name}${l.mask ? ` ···${l.mask}` : ''}</div>
+                ${l.subtype ? `<div class="loan-sub">${l.subtype}</div>` : ''}
+              </div>
+              <span class="stat-value mono" style="font-size:1.1rem">${fmts(l.currentBalance)}</span>
+            </div>
+            <div class="loan-stats">
+              <div class="loan-stat">
+                <div class="loan-stat-label">APR</div>
+                <div class="loan-stat-value">${l.apr != null ? l.apr + '%' : '—'}</div>
+              </div>
+              <div class="loan-stat">
+                <div class="loan-stat-label">Paid this year</div>
+                <div class="loan-stat-value text-green">${l.principalPaidThisYear != null ? fmts(l.principalPaidThisYear) : '—'}</div>
+              </div>
+              <div class="loan-stat">
+                <div class="loan-stat-label">Payoff est.</div>
+                <div class="loan-stat-value">${l.projectedPayoffMonths != null ? l.projectedPayoffMonths + ' mo' : '—'}</div>
+              </div>
+            </div>
+          </div>`).join('')
+        : '<div class="empty">No loans linked.</div>'
+    }
+
+    load()
+  </script>
+</body>
+</html>

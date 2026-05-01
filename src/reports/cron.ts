@@ -1,7 +1,6 @@
 import cron from 'node-cron'
-import { runMonthlyReport, runYearlyReport } from './generate.js'
+import { runMonthlyReport, runYearlyReport, handlePaycheckDetected } from './generate.js'
 import { db } from '../db/client.js'
-import { handlePaycheckDetected } from './generate.js'
 
 export function startCronJobs(): void {
   cron.schedule('0 8 1 * *', async () => {

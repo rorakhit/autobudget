@@ -1,0 +1,153 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <link rel="icon" href="/public/icon.png" type="image/png">
+  <title>GhostPaper — Spending</title>
+  <link rel="stylesheet" href="/public/style.css">
+  <style>
+    .range-tabs { display: flex; gap: 4px; margin-bottom: 24px; }
+    .range-tab {
+      padding: 5px 14px; border-radius: var(--radius-sm); font-size: 0.78rem;
+      font-weight: 600; cursor: pointer; border: 1px solid var(--border2);
+      background: transparent; color: var(--muted); transition: all 0.15s;
+    }
+    .range-tab.active { background: var(--accent); color: #000; border-color: var(--accent); }
+
+    .cat-bar-row { display: flex; align-items: center; gap: 12px; margin-bottom: 10px; }
+    .cat-label { font-size: 0.82rem; color: var(--muted); width: 150px; flex-shrink: 0; }
+    .cat-bar-track { flex: 1; height: 6px; background: var(--bg2); border-radius: 99px; overflow: hidden; }
+    .cat-bar-fill { height: 100%; border-radius: 99px; background: var(--accent); opacity: 0.8; }
+    .cat-total { font-size: 0.82rem; font-weight: 700; width: 90px; text-align: right; }
+    .cat-pct { font-size: 0.72rem; color: var(--muted); width: 36px; text-align: right; }
+
+    .tx-table td:last-child, .tx-table th:last-child { text-align: right; }
+    .tx-merchant { font-weight: 600; }
+    .tx-date { color: var(--muted); font-size: 0.78rem; }
+
+    .two-col { display: grid; grid-template-columns: 1fr 1fr; gap: 16px; }
+    @media (max-width: 620px) { .two-col { grid-template-columns: 1fr; } }
+
+    .recur-row { display: flex; justify-content: space-between; align-items: center; padding: 10px 0; border-bottom: 1px solid var(--border); }
+    .recur-row:last-child { border-bottom: none; }
+    .recur-name { font-size: 0.85rem; font-weight: 600; }
+    .recur-freq { font-size: 0.72rem; color: var(--muted); }
+    .recur-amt { font-size: 0.88rem; font-weight: 700; }
+  </style>
+</head>
+<body>
+  <nav class="nav">
+    <a class="nav-brand" href="/"><img src="/public/icon.png" alt="GhostPaper"> GhostPaper</a>
+    <div class="nav-links">
+      <a class="nav-link" href="/">Home</a>
+      <a class="nav-link" href="/reports">Reports</a>
+      <a class="nav-link active" href="/spending">Spending</a>
+      <a class="nav-link" href="/credit">Credit</a>
+    </div>
+    <div class="nav-right"></div>
+  </nav>
+
+  <div class="page">
+    <div class="page-title">
+      <h1>Spending</h1>
+      <p>Category breakdown, biggest purchases, and recurring charges</p>
+    </div>
+
+    <div class="range-tabs">
+      <button class="range-tab" onclick="setRange(14, this)">2 weeks</button>
+      <button class="range-tab active" onclick="setRange(30, this)">30 days</button>
+      <button class="range-tab" onclick="setRange(90, this)">90 days</button>
+      <button class="range-tab" onclick="setRange(365, this)">1 year</button>
+    </div>
+
+    <div class="stat-grid stat-grid-3 mb-16" id="summary-stats">
+      <div class="stat-cell"><span class="stat-label">Total spend</span><span class="stat-value mono" id="st-spend">—</span></div>
+      <div class="stat-cell"><span class="stat-label">Daily avg</span><span class="stat-value mono" id="st-daily">—</span></div>
+      <div class="stat-cell"><span class="stat-label">Savings rate</span><span class="stat-value mono" id="st-rate">—</span></div>
+    </div>
+
+    <div class="two-col">
+      <section>
+        <div class="section-header"><span class="section-title">By category</span></div>
+        <div id="cat-list"><div class="empty">Loading…</div></div>
+      </section>
+      <section>
+        <div class="section-header"><span class="section-title">Recurring charges</span></div>
+        <div id="recur-list"><div class="empty">Loading…</div></div>
+      </section>
+    </div>
+
+    <section style="margin-top:32px">
+      <div class="section-header"><span class="section-title">Biggest purchases</span></div>
+      <div class="table-wrap">
+        <table class="tx-table">
+          <thead><tr><th>Merchant</th><th>Category</th><th>Date</th><th>Amount</th></tr></thead>
+          <tbody id="tx-body"><tr><td colspan="4" style="text-align:center;color:var(--muted)">Loading…</td></tr></tbody>
+        </table>
+      </div>
+    </section>
+  </div>
+
+  <script>
+    const fmt = n => '$' + Math.abs(n).toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })
+    const fmts = n => '$' + Math.abs(n).toLocaleString('en-US', { maximumFractionDigits: 0 })
+    let days = 30
+
+    function setRange(d, btn) {
+      days = d
+      document.querySelectorAll('.range-tab').forEach(t => t.classList.remove('active'))
+      btn.classList.add('active')
+      load()
+    }
+
+    async function load() {
+      const res = await fetch(`/spending/data?days=${days}`)
+      if (res.status === 403) { location.href = '/'; return }
+      const data = await res.json()
+
+      document.getElementById('st-spend').textContent = fmts(data.totalSpend)
+      document.getElementById('st-daily').textContent = fmts(data.totalSpend / days)
+      document.getElementById('st-rate').textContent = data.savingsRate + '%'
+
+      const cats = Object.entries(data.categoryBreakdown).sort((a,b)=>b[1]-a[1])
+      const maxCat = cats[0]?.[1] ?? 1
+      const totalSpend = data.totalSpend || 1
+      document.getElementById('cat-list').innerHTML = cats.length
+        ? cats.map(([cat, amt]) => `
+          <div class="cat-bar-row">
+            <span class="cat-label">${cat}</span>
+            <div class="cat-bar-track"><div class="cat-bar-fill" style="width:${Math.round(amt/maxCat*100)}%"></div></div>
+            <span class="cat-total">${fmt(amt)}</span>
+            <span class="cat-pct">${Math.round(amt/totalSpend*100)}%</span>
+          </div>`).join('')
+        : '<div class="empty">No spend data.</div>'
+
+      const recur = data.recurringCharges ?? []
+      document.getElementById('recur-list').innerHTML = recur.length
+        ? recur.map(r => `
+          <div class="recur-row">
+            <div>
+              <div class="recur-name">${r.merchant_name}</div>
+              <div class="recur-freq">${r.frequency ?? 'recurring'} · last ${r.last_seen ?? '—'}</div>
+            </div>
+            <span class="recur-amt">${r.average_amount ? fmt(r.average_amount) : '—'}</span>
+          </div>`).join('')
+        : '<div class="empty">No recurring charges.</div>'
+
+      const txs = data.largestPurchases ?? []
+      document.getElementById('tx-body').innerHTML = txs.length
+        ? txs.map(t => `
+          <tr>
+            <td class="tx-merchant">${t.merchant}</td>
+            <td><span class="badge badge-muted">${t.category}</span></td>
+            <td class="tx-date">${t.date}</td>
+            <td class="text-right mono">${fmt(t.amount)}</td>
+          </tr>`).join('')
+        : '<tr><td colspan="4" style="text-align:center;color:var(--muted)">No transactions.</td></tr>'
+    }
+
+    load()
+  </script>
+</body>
+</html>

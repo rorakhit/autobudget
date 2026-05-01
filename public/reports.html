@@ -1,0 +1,183 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <link rel="icon" href="/public/icon.png" type="image/png">
+  <title>GhostPaper — Reports</title>
+  <link rel="stylesheet" href="/public/style.css">
+  <style>
+    .report-list { display: flex; flex-direction: column; gap: 8px; }
+    .report-row {
+      background: var(--bg1); border: 1px solid var(--border);
+      border-radius: var(--radius); padding: 16px 20px;
+      cursor: pointer; transition: border-color 0.15s;
+      display: flex; align-items: center; justify-content: space-between; gap: 16px;
+    }
+    .report-row:hover { border-color: var(--border2); }
+    .report-row.open { border-color: var(--accent); }
+    .report-meta { display: flex; align-items: center; gap: 12px; flex: 1; min-width: 0; }
+    .report-period { font-size: 0.88rem; font-weight: 700; }
+    .report-stats { display: flex; gap: 16px; font-size: 0.78rem; color: var(--muted); }
+    .report-stat span { color: var(--text); font-weight: 600; }
+    .report-arrow { color: var(--muted); font-size: 0.8rem; transition: transform 0.2s; flex-shrink: 0; }
+    .report-row.open .report-arrow { transform: rotate(90deg); }
+
+    .report-body {
+      display: none; padding: 20px;
+      background: var(--bg); border: 1px solid var(--border);
+      border-top: none; border-radius: 0 0 var(--radius) var(--radius);
+      margin-top: -9px;
+    }
+    .report-body.open { display: block; }
+
+    .report-section { margin-bottom: 24px; }
+    .report-section:last-child { margin-bottom: 0; }
+    .report-section h3 {
+      font-size: 0.65rem; font-weight: 700; color: var(--muted);
+      text-transform: uppercase; letter-spacing: 0.1em; margin-bottom: 12px;
+    }
+
+    .alloc-text { font-size: 0.88rem; line-height: 1.7; color: #bbb; white-space: pre-wrap; }
+
+    .cat-row { display: flex; align-items: center; gap: 10px; margin-bottom: 8px; }
+    .cat-name { font-size: 0.82rem; width: 140px; flex-shrink: 0; color: var(--muted); }
+    .cat-bar-wrap { flex: 1; }
+    .cat-bar { height: 5px; background: var(--accent); border-radius: 99px; opacity: 0.7; }
+    .cat-amt { font-size: 0.82rem; font-weight: 600; width: 80px; text-align: right; }
+
+    .filter-tabs { display: flex; gap: 4px; margin-bottom: 20px; }
+    .filter-tab {
+      padding: 5px 12px; border-radius: var(--radius-sm); font-size: 0.78rem;
+      font-weight: 600; cursor: pointer; border: 1px solid var(--border2);
+      background: transparent; color: var(--muted); transition: all 0.15s;
+    }
+    .filter-tab.active { background: var(--accent); color: #000; border-color: var(--accent); }
+  </style>
+</head>
+<body>
+  <nav class="nav">
+    <a class="nav-brand" href="/"><img src="/public/icon.png" alt="GhostPaper"> GhostPaper</a>
+    <div class="nav-links">
+      <a class="nav-link" href="/">Home</a>
+      <a class="nav-link active" href="/reports">Reports</a>
+      <a class="nav-link" href="/spending">Spending</a>
+      <a class="nav-link" href="/credit">Credit</a>
+    </div>
+    <div class="nav-right"></div>
+  </nav>
+
+  <div class="page">
+    <div class="page-title">
+      <h1>Reports</h1>
+      <p>Paycheck, monthly, and yearly financial reports</p>
+    </div>
+
+    <div class="filter-tabs">
+      <button class="filter-tab active" onclick="setFilter('all', this)">All</button>
+      <button class="filter-tab" onclick="setFilter('biweekly', this)">Paycheck</button>
+      <button class="filter-tab" onclick="setFilter('monthly', this)">Monthly</button>
+      <button class="filter-tab" onclick="setFilter('yearly', this)">Yearly</button>
+    </div>
+
+    <div class="report-list" id="report-list">
+      <div class="empty">Loading…</div>
+    </div>
+  </div>
+
+  <script>
+    const fmt = n => '$' + Math.abs(n).toLocaleString('en-US', { maximumFractionDigits: 0 })
+    const fmtFull = n => '$' + Math.abs(n).toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })
+
+    let allReports = []
+    let currentFilter = 'all'
+
+    function setFilter(f, btn) {
+      currentFilter = f
+      document.querySelectorAll('.filter-tab').forEach(t => t.classList.remove('active'))
+      btn.classList.add('active')
+      render()
+    }
+
+    function typeLabel(t) {
+      return t === 'biweekly' ? 'Paycheck' : t === 'monthly' ? 'Monthly' : 'Yearly'
+    }
+    function typeBadgeClass(t) {
+      return t === 'biweekly' ? 'badge-accent' : t === 'monthly' ? 'badge-muted' : 'badge-green'
+    }
+
+    function render() {
+      const list = document.getElementById('report-list')
+      const filtered = currentFilter === 'all' ? allReports : allReports.filter(r => r.period_type === currentFilter)
+      if (!filtered.length) { list.innerHTML = '<div class="empty">No reports yet.</div>'; return }
+
+      list.innerHTML = filtered.map((r, i) => {
+        const kf = r.key_findings ?? {}
+        const alloc = kf.paycheck_allocation ?? ''
+        const savRec = kf.savings_recommendation ?? ''
+        const cats = r.category_breakdown ? Object.entries(r.category_breakdown).sort((a,b)=>b[1]-a[1]).slice(0,6) : []
+        const maxCat = cats[0]?.[1] ?? 1
+
+        return `
+        <div>
+          <div class="report-row" onclick="toggleRow(${i})" id="row-${i}">
+            <div class="report-meta">
+              <span class="badge ${typeBadgeClass(r.period_type)}">${typeLabel(r.period_type)}</span>
+              <span class="report-period">${r.period_start} → ${r.period_end}</span>
+              <div class="report-stats">
+                ${r.total_income ? `<span>Income <span>${fmt(r.total_income)}</span></span>` : ''}
+                ${r.total_spend ? `<span>Spend <span>${fmt(r.total_spend)}</span></span>` : ''}
+                ${r.savings_rate != null ? `<span>Saved <span>${r.savings_rate}%</span></span>` : ''}
+              </div>
+            </div>
+            <span class="report-arrow">›</span>
+          </div>
+          <div class="report-body" id="body-${i}">
+            ${r.raw_analysis ? `
+              <div class="report-section">
+                <h3>Analysis</h3>
+                <div class="narrative">${r.raw_analysis}</div>
+              </div>` : ''}
+            ${cats.length ? `
+              <div class="report-section">
+                <h3>Spending by category</h3>
+                ${cats.map(([cat, amt]) => `
+                  <div class="cat-row">
+                    <span class="cat-name">${cat}</span>
+                    <div class="cat-bar-wrap"><div class="cat-bar" style="width:${Math.round((amt/maxCat)*100)}%"></div></div>
+                    <span class="cat-amt">${fmtFull(amt)}</span>
+                  </div>`).join('')}
+              </div>` : ''}
+            ${alloc ? `
+              <div class="report-section">
+                <h3>Paycheck allocation</h3>
+                <div class="alloc-text">${alloc}</div>
+              </div>` : ''}
+            ${savRec ? `
+              <div class="report-section">
+                <h3>Savings recommendation</h3>
+                <div class="alloc-text">${savRec}</div>
+              </div>` : ''}
+          </div>
+        </div>`
+      }).join('')
+    }
+
+    function toggleRow(i) {
+      const row = document.getElementById(`row-${i}`)
+      const body = document.getElementById(`body-${i}`)
+      const isOpen = body.classList.contains('open')
+      row.classList.toggle('open', !isOpen)
+      body.classList.toggle('open', !isOpen)
+    }
+
+    async function load() {
+      const res = await fetch('/reports/data')
+      if (res.status === 403) { location.href = '/'; return }
+      allReports = await res.json()
+      render()
+    }
+    load()
+  </script>
+</body>
+</html>

@@ -3,10 +3,11 @@
 <head>
   <meta charset="UTF-8">
   <link rel="icon" href="/public/icon.png" type="image/png">
+  <link rel="stylesheet" href="/public/style.css">
   <title>GhostPaper — Paycheck Setup</title>
   <style>
     * { box-sizing: border-box; }
-    body { font-family: system-ui, sans-serif; max-width: 720px; margin: 40px auto; padding: 0 20px; color: #111; }
+    body { font-family: system-ui, sans-serif; background: #0a0a0a; color: #f0f0f0; max-width: 720px; margin: 40px auto; padding: 0 20px; color: #111; }
     .back-link { display: inline-flex; align-items: center; gap: 4px; font-size: 0.78rem; color: #6b7280; text-decoration: none; margin-bottom: 20px; }
     .back-link:hover { color: #111; }
     h1 { font-size: 1.4rem; margin-bottom: 4px; }
@@ -56,6 +57,11 @@
   </style>
 </head>
 <body>
+  <nav class="nav">
+    <a class="nav-brand" href="/"><img src="/public/icon.png" alt="GhostPaper"> GhostPaper</a>
+    <div class="nav-links"><a class="nav-link" href="/">Home</a><a class="nav-link" href="/reports">Reports</a><a class="nav-link" href="/spending">Spending</a><a class="nav-link" href="/credit">Credit</a></div>
+    <div class="nav-right"></div>
+  </nav>
   <a class="back-link" href="/">← Home</a>
   <h1>GhostPaper — Paycheck Setup</h1>
   <p class="subtitle">Configure which account triggers your paycheck report and how recurring charges are classified.</p>
