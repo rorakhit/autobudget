@@ -7,59 +7,60 @@
   <title>GhostPaper — Review Categories</title>
   <style>
     * { box-sizing: border-box; }
-    body { font-family: system-ui, sans-serif; background: #0a0a0a; color: #f0f0f0; max-width: 900px; margin: 40px auto; padding: 0 20px; color: #111; }
-    .back-link { display: inline-flex; align-items: center; gap: 4px; font-size: 0.78rem; color: #6b7280; text-decoration: none; margin-bottom: 20px; }
-    .back-link:hover { color: #111; }
-    h1 { font-size: 1.4rem; margin-bottom: 4px; }
+    body { font-family: system-ui, sans-serif; background: #0a0a0a; color: #f0f0f0; max-width: 900px; margin: 40px auto; padding: 0 20px; }
+    .back-link { display: inline-flex; align-items: center; gap: 4px; font-size: 0.78rem; color: #666; text-decoration: none; margin-bottom: 20px; }
+    .back-link:hover { color: #f0f0f0; }
+    h1 { font-size: 1.4rem; margin-bottom: 4px; color: #f0f0f0; }
     .subtitle { color: #666; font-size: 0.9rem; margin-bottom: 24px; }
     .filters { display: flex; gap: 16px; margin-bottom: 20px; align-items: center; }
-    .filters input[type="text"] { padding: 7px 12px; border: 1px solid #ccc; border-radius: 6px; font-size: 0.9rem; width: 240px; }
-    .filters label { font-size: 0.9rem; color: #444; display: flex; align-items: center; gap: 6px; cursor: pointer; }
+    .filters input[type="text"] { padding: 7px 12px; border: 1px solid #2e2e2e; border-radius: 6px; font-size: 0.9rem; width: 240px; background: #1a1a1a; color: #f0f0f0; }
+    .filters input[type="text"]:focus { outline: none; border-color: #c8ff00; }
+    .filters label { font-size: 0.9rem; color: #aaa; display: flex; align-items: center; gap: 6px; cursor: pointer; }
     table { width: 100%; border-collapse: collapse; font-size: 0.9rem; }
-    th { text-align: left; padding: 8px 12px; border-bottom: 2px solid #eee; color: #666; font-weight: 600; font-size: 0.8rem; text-transform: uppercase; letter-spacing: 0.04em; }
-    td { padding: 8px 12px; border-bottom: 1px solid #f0f0f0; vertical-align: middle; }
-    tr.merchant-row:hover > td { background: #fafafa; }
+    th { text-align: left; padding: 8px 12px; border-bottom: 2px solid #222; color: #666; font-weight: 600; font-size: 0.8rem; text-transform: uppercase; letter-spacing: 0.04em; }
+    td { padding: 8px 12px; border-bottom: 1px solid #1e1e1e; vertical-align: middle; color: #f0f0f0; }
+    tr.merchant-row:hover > td { background: #141414; }
     .confidence { display: inline-block; padding: 2px 8px; border-radius: 99px; font-size: 0.8rem; font-weight: 600; }
-    .conf-high { background: #d1fae5; color: #065f46; }
-    .conf-mid  { background: #fef3c7; color: #92400e; }
-    .conf-low  { background: #fee2e2; color: #991b1b; }
-    .sample { color: #888; font-size: 0.8rem; margin-top: 3px; }
+    .conf-high { background: rgba(0,230,118,0.12); color: #00e676; }
+    .conf-mid  { background: rgba(255,183,77,0.12); color: #ffb74d; }
+    .conf-low  { background: rgba(255,77,77,0.12); color: #ff4d4d; }
+    .sample { color: #666; font-size: 0.8rem; margin-top: 3px; }
     .sample-row { display: flex; gap: 8px; }
-    .sample-date { color: #aaa; min-width: 80px; }
-    .sample-amount { color: #555; min-width: 60px; }
-    .sample-name { color: #888; font-style: italic; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; max-width: 200px; }
-    select { padding: 5px 8px; border: 1px solid #ccc; border-radius: 5px; font-size: 0.85rem; background: white; }
-    select.changed { border-color: #6366f1; background: #eef2ff; }
-    button.save { padding: 5px 14px; background: #6366f1; color: white; border: none; border-radius: 5px; font-size: 0.85rem; cursor: pointer; display: none; }
-    button.save:hover { background: #4f46e5; }
+    .sample-date { color: #555; min-width: 80px; }
+    .sample-amount { color: #888; min-width: 60px; }
+    .sample-name { color: #666; font-style: italic; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; max-width: 200px; }
+    select { padding: 5px 8px; border: 1px solid #2e2e2e; border-radius: 5px; font-size: 0.85rem; background: #1a1a1a; color: #f0f0f0; }
+    select.changed { border-color: #c8ff00; background: rgba(200,255,0,0.06); }
+    button.save { padding: 5px 14px; background: #c8ff00; color: #000; border: none; border-radius: 5px; font-size: 0.85rem; cursor: pointer; display: none; font-weight: 700; }
+    button.save:hover { opacity: 0.85; }
     button.save.visible { display: inline-block; }
-    button.saved { background: #10b981; }
-    button.confirm-merchant { padding: 5px 12px; background: #f0fdf4; color: #16a34a; border: 1px solid #bbf7d0; border-radius: 5px; font-size: 0.85rem; cursor: pointer; }
-    button.confirm-merchant:hover { background: #dcfce7; }
-    #save-all { padding: 9px 20px; background: #1a1a1a; color: white; border: none; border-radius: 6px; font-size: 0.9rem; cursor: pointer; }
+    button.saved { background: #00e676; }
+    button.confirm-merchant { padding: 5px 12px; background: rgba(0,230,118,0.08); color: #00e676; border: 1px solid rgba(0,230,118,0.2); border-radius: 5px; font-size: 0.85rem; cursor: pointer; }
+    button.confirm-merchant:hover { background: rgba(0,230,118,0.14); }
+    #save-all { padding: 9px 20px; background: #c8ff00; color: #000; border: none; border-radius: 6px; font-size: 0.9rem; cursor: pointer; font-weight: 700; }
     #save-all:disabled { opacity: 0.4; cursor: default; }
-    #save-all:hover:not(:disabled) { background: #333; }
+    #save-all:hover:not(:disabled) { opacity: 0.85; }
     .toolbar { display: flex; justify-content: space-between; align-items: center; margin-bottom: 12px; }
-    #pending-count { font-size: 0.85rem; color: #6366f1; font-weight: 600; }
+    #pending-count { font-size: 0.85rem; color: #c8ff00; font-weight: 600; }
     #status { font-size: 0.85rem; color: #666; margin-top: 12px; min-height: 20px; }
-    .empty { text-align: center; padding: 60px 0; color: #999; }
+    .empty { text-align: center; padding: 60px 0; color: #555; }
 
     /* Expand button */
-    .expand-btn { background: none; border: none; cursor: pointer; font-size: 0.8rem; color: #6366f1; padding: 0; white-space: nowrap; }
+    .expand-btn { background: none; border: none; cursor: pointer; font-size: 0.8rem; color: #c8ff00; padding: 0; white-space: nowrap; }
     .expand-btn:hover { text-decoration: underline; }
 
     /* Transaction sub-rows */
-    tr.tx-row td { background: #f8f8ff; padding: 6px 12px 6px 28px; border-bottom: 1px solid #ececff; font-size: 0.85rem; }
-    tr.tx-row:last-of-type td { border-bottom: 2px solid #eee; }
-    tr.tx-row td.tx-meta { color: #777; }
-    .tx-rawname { font-style: italic; color: #999; font-size: 0.8rem; }
+    tr.tx-row td { background: #0f0f0f; padding: 6px 12px 6px 28px; border-bottom: 1px solid #1e1e1e; font-size: 0.85rem; color: #f0f0f0; }
+    tr.tx-row:last-of-type td { border-bottom: 2px solid #222; }
+    tr.tx-row td.tx-meta { color: #666; }
+    .tx-rawname { font-style: italic; color: #555; font-size: 0.8rem; }
     .tx-actions { display: flex; align-items: center; gap: 8px; }
-    button.tx-save { padding: 4px 12px; background: #6366f1; color: white; border: none; border-radius: 5px; font-size: 0.8rem; cursor: pointer; }
+    button.tx-save { padding: 4px 12px; background: #c8ff00; color: #000; border: none; border-radius: 5px; font-size: 0.8rem; cursor: pointer; font-weight: 700; }
     button.tx-save:disabled { opacity: 0.5; cursor: default; }
-    button.tx-save:hover:not(:disabled) { background: #4f46e5; }
-    button.tx-confirm { padding: 4px 10px; background: #f0fdf4; color: #16a34a; border: 1px solid #bbf7d0; border-radius: 5px; font-size: 0.8rem; cursor: pointer; }
-    button.tx-confirm:hover { background: #dcfce7; }
-    .tx-saved-label { font-size: 0.8rem; color: #10b981; font-weight: 600; }
+    button.tx-save:hover:not(:disabled) { opacity: 0.85; }
+    button.tx-confirm { padding: 4px 10px; background: rgba(0,230,118,0.08); color: #00e676; border: 1px solid rgba(0,230,118,0.2); border-radius: 5px; font-size: 0.8rem; cursor: pointer; }
+    button.tx-confirm:hover { background: rgba(0,230,118,0.14); }
+    .tx-saved-label { font-size: 0.8rem; color: #00e676; font-weight: 600; }
   </style>
 </head>
 <body>

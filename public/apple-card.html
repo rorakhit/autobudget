@@ -7,17 +7,17 @@
   <title>GhostPaper — Apple Card Import</title>
   <style>
     * { box-sizing: border-box; }
-    body { font-family: system-ui, sans-serif; background: #0a0a0a; color: #f0f0f0; max-width: 720px; margin: 40px auto; padding: 0 20px; color: #111; }
-    .back-link { display: inline-flex; align-items: center; gap: 4px; font-size: 0.78rem; color: #6b7280; text-decoration: none; margin-bottom: 20px; }
-    .back-link:hover { color: #111; }
-    h1 { font-size: 1.4rem; margin-bottom: 4px; }
+    body { font-family: system-ui, sans-serif; background: #0a0a0a; color: #f0f0f0; max-width: 720px; margin: 40px auto; padding: 0 20px; }
+    .back-link { display: inline-flex; align-items: center; gap: 4px; font-size: 0.78rem; color: #666; text-decoration: none; margin-bottom: 20px; }
+    .back-link:hover { color: #f0f0f0; }
+    h1 { font-size: 1.4rem; margin-bottom: 4px; color: #f0f0f0; }
     .subtitle { color: #666; font-size: 0.9rem; margin-bottom: 36px; }
     section { margin-bottom: 48px; }
-    h2 { font-size: 1.05rem; font-weight: 600; margin: 0 0 4px; }
-    .section-sub { color: #777; font-size: 0.85rem; margin: 0 0 20px; }
+    h2 { font-size: 1.05rem; font-weight: 600; margin: 0 0 4px; color: #f0f0f0; }
+    .section-sub { color: #666; font-size: 0.85rem; margin: 0 0 20px; }
 
     .drop-zone {
-      border: 2px dashed #d1d5db;
+      border: 2px dashed #2e2e2e;
       border-radius: 10px;
       padding: 48px 24px;
       text-align: center;
@@ -25,42 +25,42 @@
       transition: border-color 0.15s, background 0.15s;
     }
     .drop-zone:hover, .drop-zone.dragover {
-      border-color: #6366f1;
-      background: #f5f3ff;
+      border-color: #c8ff00;
+      background: rgba(200,255,0,0.04);
     }
     .drop-zone .icon { font-size: 2rem; margin-bottom: 10px; }
-    .drop-zone .label { font-size: 0.95rem; color: #555; }
-    .drop-zone .sub { font-size: 0.8rem; color: #999; margin-top: 4px; }
-    .drop-zone.has-file { border-color: #16a34a; background: #f0fdf4; }
-    .drop-zone.has-file .label { color: #16a34a; font-weight: 600; }
+    .drop-zone .label { font-size: 0.95rem; color: #888; }
+    .drop-zone .sub { font-size: 0.8rem; color: #555; margin-top: 4px; }
+    .drop-zone.has-file { border-color: #00e676; background: rgba(0,230,118,0.04); }
+    .drop-zone.has-file .label { color: #00e676; font-weight: 600; }
     #file-input { display: none; }
 
     .import-actions { display: flex; align-items: center; gap: 16px; margin-top: 16px; }
-    button.primary { padding: 8px 20px; background: #6366f1; color: white; border: none; border-radius: 6px; font-size: 0.9rem; cursor: pointer; }
-    button.primary:hover { background: #4f46e5; }
+    button.primary { padding: 8px 20px; background: #c8ff00; color: #000; border: none; border-radius: 6px; font-size: 0.9rem; cursor: pointer; font-weight: 700; }
+    button.primary:hover { opacity: 0.85; }
     button.primary:disabled { opacity: 0.4; cursor: default; }
-    button.secondary { padding: 8px 16px; background: white; color: #374151; border: 1px solid #d1d5db; border-radius: 6px; font-size: 0.9rem; cursor: pointer; }
-    button.secondary:hover { background: #f9fafb; }
+    button.secondary { padding: 8px 16px; background: #1a1a1a; color: #aaa; border: 1px solid #2e2e2e; border-radius: 6px; font-size: 0.9rem; cursor: pointer; }
+    button.secondary:hover { background: #222; color: #f0f0f0; }
 
     .result-bar {
-      display: flex; gap: 24px; padding: 14px 16px; background: #f8f9fa;
-      border-radius: 8px; font-size: 0.9rem; margin-top: 20px;
+      display: flex; gap: 24px; padding: 14px 16px; background: #111;
+      border: 1px solid #222; border-radius: 8px; font-size: 0.9rem; margin-top: 20px;
     }
     .result-bar .item { display: flex; flex-direction: column; gap: 2px; }
-    .result-bar .label { font-size: 0.72rem; font-weight: 600; color: #888; text-transform: uppercase; letter-spacing: 0.04em; }
-    .result-bar .value { font-size: 1.05rem; font-weight: 600; }
-    .value.green { color: #16a34a; }
-    .value.gray { color: #9ca3af; }
+    .result-bar .label { font-size: 0.72rem; font-weight: 600; color: #666; text-transform: uppercase; letter-spacing: 0.04em; }
+    .result-bar .value { font-size: 1.05rem; font-weight: 600; color: #f0f0f0; }
+    .value.green { color: #00e676; }
+    .value.gray { color: #555; }
 
-    .status-msg { font-size: 0.85rem; min-height: 18px; color: #555; }
-    .error-list { margin-top: 12px; font-size: 0.8rem; color: #dc2626; }
+    .status-msg { font-size: 0.85rem; min-height: 18px; color: #aaa; }
+    .error-list { margin-top: 12px; font-size: 0.8rem; color: #ff4d4d; }
 
-    .how-to { background: #f8f9fa; border-radius: 8px; padding: 16px 20px; }
+    .how-to { background: #111; border: 1px solid #222; border-radius: 8px; padding: 16px 20px; }
     .how-to ol { margin: 8px 0 0; padding-left: 20px; }
-    .how-to li { font-size: 0.88rem; color: #555; margin-bottom: 6px; line-height: 1.5; }
-    .how-to code { background: #e5e7eb; border-radius: 3px; padding: 1px 5px; font-size: 0.82rem; }
+    .how-to li { font-size: 0.88rem; color: #aaa; margin-bottom: 6px; line-height: 1.5; }
+    .how-to code { background: #1a1a1a; border: 1px solid #2e2e2e; border-radius: 3px; padding: 1px 5px; font-size: 0.82rem; color: #f0f0f0; }
 
-    .stat-pill { display: inline-block; background: #eef2ff; color: #4338ca; border-radius: 20px; padding: 3px 10px; font-size: 0.82rem; font-weight: 600; }
+    .stat-pill { display: inline-block; background: rgba(200,255,0,0.1); color: #c8ff00; border-radius: 20px; padding: 3px 10px; font-size: 0.82rem; font-weight: 600; }
   </style>
 </head>
 <body>
