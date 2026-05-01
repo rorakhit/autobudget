@@ -120,9 +120,21 @@ export async function triggerPaycheckReportHandler(req: FastifyRequest, reply: F
     setImmediate(async () => {
       const { getAggregatesForPeriod } = await import('../reports/aggregate.js')
       const { generateNarrativeForRegen, getSavingsRecommendationForRegen, getPaycheckAllocationForRegen } = await import('../reports/generate.js')
+
+      const { data: originalInsight } = await db
+        .from('insights')
+        .select('raw_analysis')
+        .eq('period_start', period_start)
+        .eq('period_end', period_end)
+        .eq('period_type', 'biweekly')
+        .is('key_findings->label', null)
+        .order('generated_at', { ascending: true })
+        .limit(1)
+        .single()
+
       const agg = await getAggregatesForPeriod(period_start, period_end, 'biweekly')
       const [narrative, savingsRec, allocation] = await Promise.all([
-        generateNarrativeForRegen(agg),
+        generateNarrativeForRegen(agg, originalInsight?.raw_analysis ?? null),
         getSavingsRecommendationForRegen(Number(paycheck_amount), agg),
         getPaycheckAllocationForRegen(Number(paycheck_amount), agg),
       ])

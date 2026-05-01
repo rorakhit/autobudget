@@ -204,7 +204,34 @@ Use exact dollar amounts. No preamble.`
   return message.content[0].type === 'text' ? message.content[0].text : ''
 }
 
-export const generateNarrativeForRegen = (agg: PeriodAggregates) => generateNarrative(agg, 'biweekly')
+export async function generateNarrativeForRegen(agg: PeriodAggregates, originalNarrative: string | null): Promise<string> {
+  const contextStr = formatAggregatesForPrompt(agg)
+  const priorSection = originalNarrative
+    ? `\n\nOriginal report for this period (written when transactions were first synced):\n"""\n${originalNarrative}\n"""\n\nSome transactions may have been re-categorized, recurring flags updated, or new transactions synced since then.`
+    : ''
+
+  const prompt = `You are a personal finance advisor. This is a REGENERATED analysis of the same paycheck period, run after the user updated their transaction data (re-categorizations, recurring flag changes, etc.).${priorSection}
+
+Current data:
+${contextStr}
+
+Write a 3-5 paragraph plain-English analysis covering:
+1. Overall spending health this period (note if data looks incomplete — e.g. $0 spend likely means transactions haven't fully synced yet)
+2. Notable category trends (good and bad) — if re-categorizations changed the picture from the original, call that out
+3. Credit health — utilization level, whether it's moving in the right direction, interest cost context
+4. 2-3 specific, actionable recommendations
+
+Be direct and honest. Use exact dollar amounts from the data. If the original report exists, briefly note what changed or was corrected. No preamble or sign-off.`
+
+  const message = await anthropic.messages.create({
+    model: 'claude-sonnet-4-6',
+    max_tokens: 1024,
+    messages: [{ role: 'user', content: prompt }],
+  })
+
+  return message.content[0].type === 'text' ? message.content[0].text : ''
+}
+
 export const getSavingsRecommendationForRegen = getSavingsRecommendation
 export const getPaycheckAllocationForRegen = getPaycheckAllocation
 
