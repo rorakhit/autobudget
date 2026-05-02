@@ -1,6 +1,6 @@
 import { checkAuth, checkAuthPage } from '../auth.js'
 import type { FastifyRequest, FastifyReply } from 'fastify'
-import { db } from '../db/client.js'
+import { sql } from '../db/client.js'
 import { handlePaycheckDetected } from '../reports/generate.js'
 import { readFileSync } from 'fs'
 import { fileURLToPath } from 'url'
@@ -15,15 +15,14 @@ export async function paycheckPageHandler(req: FastifyRequest, reply: FastifyRep
 }
 
 async function getRecurringByMerchant() {
-  const { data: txs } = await db
-    .from('transactions')
-    .select('merchant_name, amount, date')
-    .eq('is_recurring', true)
-    .eq('is_income', false)
-    .order('date', { ascending: false })
+  const txs = await sql<Array<{ merchant_name: string | null; amount: number; date: string }>>`
+    SELECT merchant_name, amount, date FROM transactions
+    WHERE is_recurring = true AND is_income = false
+    ORDER BY date DESC
+  `
 
   const map = new Map<string, { merchant_name: string; total: number; count: number; last_seen: string; amounts: number[] }>()
-  for (const tx of txs ?? []) {
+  for (const tx of txs) {
     const key = tx.merchant_name ?? 'Unknown'
     const existing = map.get(key)
     if (!existing) {
@@ -44,12 +43,12 @@ async function getRecurringByMerchant() {
 export async function paycheckDataHandler(req: FastifyRequest, reply: FastifyReply) {
   if (!checkAuth(req, reply)) return
 
-  const [{ data: patterns }, recurring] = await Promise.all([
-    db.from('paycheck_patterns').select('id, pattern').order('created_at'),
+  const [patterns, recurring] = await Promise.all([
+    sql<Array<{ id: string; pattern: string }>>`SELECT id, pattern FROM paycheck_patterns ORDER BY created_at`,
     getRecurringByMerchant(),
   ])
 
-  await reply.send({ patterns: patterns ?? [], recurring })
+  await reply.send({ patterns, recurring })
 }
 
 export async function recurringExportHandler(req: FastifyRequest, reply: FastifyReply) {
@@ -73,30 +72,37 @@ export async function addPaycheckPatternHandler(req: FastifyRequest, reply: Fast
   const { pattern } = ((req.body as any)._parsed ?? req.body) as { pattern: string }
   if (!pattern?.trim()) return reply.code(400).send({ error: 'pattern required' })
 
-  const { data, error } = await db
-    .from('paycheck_patterns')
-    .insert({ pattern: pattern.trim().toUpperCase() })
-    .select('id, pattern')
-    .single()
-
-  if (error) return reply.code(500).send({ error: error.message })
-  await reply.send(data)
+  try {
+    const [data] = await sql<Array<{ id: string; pattern: string }>>`
+      INSERT INTO paycheck_patterns (pattern) VALUES (${pattern.trim().toUpperCase()})
+      RETURNING id, pattern
+    `
+    await reply.send(data)
+  } catch (e: any) {
+    return reply.code(500).send({ error: e.message })
+  }
 }
 
 export async function removePaycheckPatternHandler(req: FastifyRequest, reply: FastifyReply) {
   if (!checkAuth(req, reply)) return
 
   const { id } = req.params as { id: string }
-  const { error } = await db.from('paycheck_patterns').delete().eq('id', id)
-  if (error) return reply.code(500).send({ error: error.message })
+  try {
+    await sql`DELETE FROM paycheck_patterns WHERE id = ${id}`
+  } catch (e: any) {
+    return reply.code(500).send({ error: e.message })
+  }
   await reply.send({ ok: true })
 }
 
 export async function removeRecurringHandler(req: FastifyRequest, reply: FastifyReply) {
   if (!checkAuth(req, reply)) return
   const { id } = req.params as { id: string }
-  const { error } = await db.from('recurring_charges').update({ is_active: false }).eq('id', id)
-  if (error) return reply.code(500).send({ error: error.message })
+  try {
+    await sql`UPDATE recurring_charges SET is_active = false WHERE id = ${id}`
+  } catch (e: any) {
+    return reply.code(500).send({ error: e.message })
+  }
   await reply.send({ ok: true })
 }
 
@@ -106,13 +112,13 @@ export async function triggerPaycheckReportHandler(req: FastifyRequest, reply: F
   const isRegen = (req.query as Record<string, string>).regen === '1'
 
   if (isRegen) {
-    const { data: lastEvent } = await db
-      .from('savings_events')
-      .select('period_start, period_end, paycheck_amount')
-      .order('created_at', { ascending: false })
-      .limit(1)
+    const lastEvent = await sql<Array<{ period_start: string; period_end: string; paycheck_amount: number }>>`
+      SELECT period_start, period_end, paycheck_amount FROM savings_events
+      ORDER BY created_at DESC
+      LIMIT 1
+    `
 
-    if (!lastEvent?.length) return reply.code(404).send({ error: 'No previous paycheck report found to regenerate' })
+    if (!lastEvent.length) return reply.code(404).send({ error: 'No previous paycheck report found to regenerate' })
 
     const { period_start, period_end, paycheck_amount } = lastEvent[0]
     await reply.send({ ok: true, regen: true, transaction: { amount: paycheck_amount, date: period_end } })
@@ -131,71 +137,75 @@ export async function triggerPaycheckReportHandler(req: FastifyRequest, reply: F
 
       // Re-derive paycheck amount from all pattern-matching income on period_end
       // (stored paycheck_amount may only reflect one of several split deposits)
-      const { data: patterns } = await db.from('paycheck_patterns').select('pattern')
+      const patterns = await sql<Array<{ pattern: string }>>`SELECT pattern FROM paycheck_patterns`
       let effectivePaycheckAmount = Number(paycheck_amount)
-      if (patterns?.length) {
-        const { data: incomeTxs } = await db
-          .from('transactions')
-          .select('merchant_name, amount')
-          .eq('is_income', true)
-          .eq('date', period_end)
-        const matching = (incomeTxs ?? []).filter(tx => {
+      if (patterns.length) {
+        const incomeTxs = await sql<Array<{ merchant_name: string | null; amount: number }>>`
+          SELECT merchant_name, amount FROM transactions
+          WHERE is_income = true AND date = ${period_end}
+        `
+        const matching = incomeTxs.filter(tx => {
           const name = (tx.merchant_name ?? '').toLowerCase()
-          return patterns.some((p: { pattern: string }) => name.includes(p.pattern.toLowerCase()))
+          return patterns.some(p => name.includes(p.pattern.toLowerCase()))
         })
         if (matching.length) {
           effectivePaycheckAmount = matching.reduce((s, tx) => s + Number(tx.amount), 0)
         }
       }
 
-      const [{ data: originalInsight }, { data: txs }] = await Promise.all([
-        db.from('insights')
-          .select('raw_analysis')
-          .eq('period_start', period_start)
-          .eq('period_end', period_end)
-          .eq('period_type', 'biweekly')
-          .is('key_findings->label', null)
-          .order('generated_at', { ascending: true })
-          .limit(1)
-          .single(),
-        db.from('transactions')
-          .select('merchant_name, amount, date, category, is_income, is_recurring')
-          .gte('date', effectivePeriodStart)
-          .lte('date', period_end)
-          .order('date', { ascending: false }),
+      const [originalInsightRows, txs] = await Promise.all([
+        sql<Array<{ raw_analysis: string }>>`
+          SELECT raw_analysis FROM insights
+          WHERE period_start = ${period_start}
+            AND period_end = ${period_end}
+            AND period_type = 'biweekly'
+            AND key_findings->'label' IS NULL
+          ORDER BY generated_at ASC
+          LIMIT 1
+        `,
+        sql<Array<{ merchant_name: string | null; amount: number; date: string; category: string | null; is_income: boolean; is_recurring: boolean }>>`
+          SELECT merchant_name, amount, date, category, is_income, is_recurring FROM transactions
+          WHERE date >= ${effectivePeriodStart} AND date <= ${period_end}
+          ORDER BY date DESC
+        `,
       ])
+      const originalInsight = originalInsightRows[0]
 
       const agg = await getAggregatesForPeriod(effectivePeriodStart, period_end, 'biweekly')
       const [narrative, savingsRec, allocation] = await Promise.all([
-        generateNarrativeForRegen(agg, originalInsight?.raw_analysis ?? null, txs ?? []),
+        generateNarrativeForRegen(agg, originalInsight?.raw_analysis ?? null, txs),
         getSavingsRecommendationForRegen(effectivePaycheckAmount, agg),
         getPaycheckAllocationForRegen(effectivePaycheckAmount, agg),
       ])
       const label = `Regen ${new Date().toISOString().replace('T', ' ').slice(0, 16)}`
-      await db.from('insights').insert({
-        period_start: effectivePeriodStart,
-        period_end,
-        period_type: 'biweekly',
-        raw_analysis: narrative,
-        key_findings: { savings_recommendation: savingsRec, paycheck_allocation: allocation, label },
-      })
+      const keyFindings = JSON.stringify({ savings_recommendation: savingsRec, paycheck_allocation: allocation, label })
+      await sql`
+        INSERT INTO insights (period_start, period_end, period_type, raw_analysis, key_findings)
+        VALUES (
+          ${effectivePeriodStart},
+          ${period_end},
+          'biweekly',
+          ${narrative},
+          ${keyFindings}::jsonb
+        )
+      `
     })
     return
   }
 
-  const { data: patterns } = await db.from('paycheck_patterns').select('pattern')
-  if (!patterns?.length) return reply.code(400).send({ error: 'No paycheck patterns configured' })
+  const patterns = await sql<Array<{ pattern: string }>>`SELECT pattern FROM paycheck_patterns`
+  if (!patterns.length) return reply.code(400).send({ error: 'No paycheck patterns configured' })
 
-  const { data: incomeTxs } = await db
-    .from('transactions')
-    .select('*')
-    .eq('is_income', true)
-    .order('date', { ascending: false })
-    .limit(200)
+  const incomeTxs = await sql<Array<Record<string, any>>>`
+    SELECT * FROM transactions
+    WHERE is_income = true
+    ORDER BY date DESC
+    LIMIT 200
+  `
 
-  const matching = (incomeTxs ?? []).filter(tx => {
-    const name = (tx.merchant_name ?? '').toLowerCase()
-    return patterns.some((p: { pattern: string }) => name.includes(p.pattern.toLowerCase()))
+  const matching = incomeTxs.filter(tx => {
+    const name = ((tx.merchant_name as string | null) ?? '').toLowerCase()
+    return patterns.some(p => name.includes(p.pattern.toLowerCase()))
   })
 
   if (!matching.length) return reply.code(404).send({ error: 'No matching paycheck deposits found' })
@@ -209,7 +219,6 @@ export async function triggerPaycheckReportHandler(req: FastifyRequest, reply: F
   await reply.send({ ok: true, transaction: { amount: totalAmount, date: latestDate } })
 
   setImmediate(async () => {
-    await handlePaycheckDetected(combined)
+    await handlePaycheckDetected(combined as any)
   })
 }
-

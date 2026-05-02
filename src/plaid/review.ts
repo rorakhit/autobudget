@@ -1,6 +1,6 @@
 import { checkAuth, checkAuthPage } from '../auth.js'
 import type { FastifyRequest, FastifyReply } from 'fastify'
-import { db } from '../db/client.js'
+import { sql } from '../db/client.js'
 import { getAllCategories } from '../db/categories.js'
 import { readFileSync } from 'fs'
 import { fileURLToPath } from 'url'
@@ -17,13 +17,20 @@ export async function reviewPageHandler(req: FastifyRequest, reply: FastifyReply
 export async function reviewTransactionsHandler(req: FastifyRequest, reply: FastifyReply) {
   if (!checkAuth(req, reply)) return
 
-  const { data } = await db
-    .from('transactions')
-    .select('merchant_name, category, category_confidence, amount, date, is_income, raw_plaid_data')
-    .eq('is_income', false)
-    .order('date', { ascending: false })
-
-  if (!data) return reply.send([])
+  const data = await sql<Array<{
+    merchant_name: string | null
+    category: string | null
+    category_confidence: number | null
+    amount: number
+    date: string
+    is_income: boolean
+    raw_plaid_data: Record<string, unknown> | null
+  }>>`
+    SELECT merchant_name, category, category_confidence, amount, date, is_income, raw_plaid_data
+    FROM transactions
+    WHERE is_income = false
+    ORDER BY date DESC
+  `
 
   // Group by merchant
   const merchantMap = new Map<string, {
@@ -81,14 +88,16 @@ export async function reviewCorrectHandler(req: FastifyRequest, reply: FastifyRe
     return reply.code(400).send({ error: 'Invalid category' })
   }
 
-  const { error, count } = await db
-    .from('transactions')
-    .update({ category, category_confidence: 100, flagged_for_review: false })
-    .eq('merchant_name', merchant_name)
-
-  if (error) return reply.code(500).send({ error: error.message })
-
-  await reply.send({ ok: true, merchant: merchant_name, category, updated: count })
+  try {
+    const result = await sql`
+      UPDATE transactions
+      SET category = ${category}, category_confidence = 100, flagged_for_review = false
+      WHERE merchant_name = ${merchant_name}
+    `
+    await reply.send({ ok: true, merchant: merchant_name, category, updated: result.count })
+  } catch (e: any) {
+    return reply.code(500).send({ error: e.message })
+  }
 }
 
 export async function merchantTransactionsHandler(req: FastifyRequest, reply: FastifyReply) {
@@ -96,15 +105,22 @@ export async function merchantTransactionsHandler(req: FastifyRequest, reply: Fa
 
   const { merchant } = req.params as { merchant: string }
 
-  const { data } = await db
-    .from('transactions')
-    .select('plaid_transaction_id, amount, date, category, category_confidence, raw_plaid_data')
-    .eq('merchant_name', merchant)
-    .eq('is_income', false)
-    .order('date', { ascending: false })
-    .limit(100)
+  const data = await sql<Array<{
+    plaid_transaction_id: string
+    amount: number
+    date: string
+    category: string | null
+    category_confidence: number | null
+    raw_plaid_data: Record<string, unknown> | null
+  }>>`
+    SELECT plaid_transaction_id, amount, date, category, category_confidence, raw_plaid_data
+    FROM transactions
+    WHERE merchant_name = ${merchant} AND is_income = false
+    ORDER BY date DESC
+    LIMIT 100
+  `
 
-  const transactions = (data ?? []).map(tx => ({
+  const transactions = data.map(tx => ({
     id: tx.plaid_transaction_id,
     amount: Number(tx.amount),
     date: tx.date,
@@ -129,12 +145,15 @@ export async function correctTransactionHandler(req: FastifyRequest, reply: Fast
     return reply.code(400).send({ error: 'Invalid category' })
   }
 
-  const { error } = await db
-    .from('transactions')
-    .update({ category, category_confidence: 100, flagged_for_review: false })
-    .eq('plaid_transaction_id', plaid_transaction_id)
-
-  if (error) return reply.code(500).send({ error: error.message })
+  try {
+    await sql`
+      UPDATE transactions
+      SET category = ${category}, category_confidence = 100, flagged_for_review = false
+      WHERE plaid_transaction_id = ${plaid_transaction_id}
+    `
+  } catch (e: any) {
+    return reply.code(500).send({ error: e.message })
+  }
   await reply.send({ ok: true })
 }
 
@@ -146,12 +165,15 @@ export async function confirmTransactionHandler(req: FastifyRequest, reply: Fast
 
   if (!plaid_transaction_id) return reply.code(400).send({ error: 'plaid_transaction_id required' })
 
-  const { error } = await db
-    .from('transactions')
-    .update({ category_confidence: 100, flagged_for_review: false })
-    .eq('plaid_transaction_id', plaid_transaction_id)
-
-  if (error) return reply.code(500).send({ error: error.message })
+  try {
+    await sql`
+      UPDATE transactions
+      SET category_confidence = 100, flagged_for_review = false
+      WHERE plaid_transaction_id = ${plaid_transaction_id}
+    `
+  } catch (e: any) {
+    return reply.code(500).send({ error: e.message })
+  }
   await reply.send({ ok: true })
 }
 
@@ -163,14 +185,16 @@ export async function confirmMerchantHandler(req: FastifyRequest, reply: Fastify
 
   if (!merchant_name) return reply.code(400).send({ error: 'merchant_name required' })
 
-  const { error, count } = await db
-    .from('transactions')
-    .update({ category_confidence: 100, flagged_for_review: false })
-    .eq('merchant_name', merchant_name)
-    .lt('category_confidence', 100)
-
-  if (error) return reply.code(500).send({ error: error.message })
-  await reply.send({ ok: true, confirmed: count })
+  try {
+    const result = await sql`
+      UPDATE transactions
+      SET category_confidence = 100, flagged_for_review = false
+      WHERE merchant_name = ${merchant_name} AND category_confidence < 100
+    `
+    await reply.send({ ok: true, confirmed: result.count })
+  } catch (e: any) {
+    return reply.code(500).send({ error: e.message })
+  }
 }
 
 export async function toggleRecurringHandler(req: FastifyRequest, reply: FastifyReply) {
@@ -183,25 +207,30 @@ export async function toggleRecurringHandler(req: FastifyRequest, reply: Fastify
     return reply.code(400).send({ error: 'plaid_transaction_id and is_recurring required' })
   }
 
-  const { error } = await db
-    .from('transactions')
-    .update({ is_recurring: Boolean(is_recurring) })
-    .eq('plaid_transaction_id', plaid_transaction_id)
-
-  if (error) return reply.code(500).send({ error: error.message })
+  try {
+    await sql`
+      UPDATE transactions
+      SET is_recurring = ${Boolean(is_recurring)}
+      WHERE plaid_transaction_id = ${plaid_transaction_id}
+    `
+  } catch (e: any) {
+    return reply.code(500).send({ error: e.message })
+  }
   await reply.send({ ok: true })
 }
 
 export async function allTransactionsHandler(req: FastifyRequest, reply: FastifyReply) {
   if (!checkAuth(req, reply)) return
 
-  const { data } = await db
-    .from('transactions')
-    .select('plaid_transaction_id, merchant_name, category, category_confidence, amount, date, is_recurring, flagged_for_review, raw_plaid_data')
-    .eq('is_income', false)
-    .order('date', { ascending: false })
-    .limit(500)
+  const data = await sql`
+    SELECT plaid_transaction_id, merchant_name, category, category_confidence,
+           amount, date, is_recurring, flagged_for_review, raw_plaid_data
+    FROM transactions
+    WHERE is_income = false
+    ORDER BY date DESC
+    LIMIT 500
+  `
 
   const categories = await getAllCategories()
-  await reply.send({ transactions: data ?? [], categories })
+  await reply.send({ transactions: data, categories })
 }

@@ -2,7 +2,7 @@ import type { FastifyRequest, FastifyReply } from 'fastify'
 import * as jose from 'jose'
 import { createHash } from 'crypto'
 import { plaidClient } from './client.js'
-import { db } from '../db/client.js'
+import { sql } from '../db/client.js'
 import { syncTransactions } from './sync.js'
 import { checkAlertsForTransaction } from '../alerts/rules.js'
 import { handlePaycheckDetected } from '../reports/generate.js'
@@ -54,24 +54,24 @@ async function verifyPlaidSignature(token: string, rawBody: Buffer, log: Fastify
 }
 
 async function getPlaidItemByPlaidId(plaidItemId: string): Promise<string | null> {
-  const { data } = await db
-    .from('plaid_items')
-    .select('id')
-    .eq('plaid_item_id', plaidItemId)
-    .single()
+  const [data] = await sql<Array<{ id: string }>>`
+    SELECT id FROM plaid_items WHERE plaid_item_id = ${plaidItemId} LIMIT 1
+  `
   return data?.id ?? null
 }
 
 async function getAccountIdsForItem(itemId: string): Promise<string[]> {
-  const { data } = await db.from('accounts').select('id').eq('plaid_item_id', itemId)
-  return (data ?? []).map(a => a.id)
+  const rows = await sql<Array<{ id: string }>>`
+    SELECT id FROM accounts WHERE plaid_item_id = ${itemId}
+  `
+  return rows.map(a => a.id)
 }
 
 export async function runPaycheckCheckForTransactions(txs: Record<string, unknown>[]): Promise<void> {
   if (!txs.length) return
 
-  const { data: patterns } = await db.from('paycheck_patterns').select('pattern')
-  if (!patterns?.length) return
+  const patterns = await sql<Array<{ pattern: string }>>`SELECT pattern FROM paycheck_patterns`
+  if (!patterns.length) return
 
   const matchingDeposits = txs.filter(tx => {
     if (!tx['is_income']) return false
@@ -94,14 +94,13 @@ export async function runPaycheckCheckForTransactions(txs: Record<string, unknow
   const totalAmount = group.reduce((s, tx) => s + Number(tx['amount']), 0)
 
   const fiveDaysAgo = new Date(Date.now() - 5 * 24 * 60 * 60 * 1000).toISOString()
-  const { data: recentReport } = await db
-    .from('savings_events')
-    .select('id')
-    .gte('created_at', fiveDaysAgo)
-    .limit(1)
-    .single()
+  const recentReport = await sql<Array<{ id: string }>>`
+    SELECT id FROM savings_events
+    WHERE created_at >= ${fiveDaysAgo}
+    LIMIT 1
+  `
 
-  if (!recentReport) {
+  if (!recentReport.length) {
     // Use first tx as representative but override amount with combined total
     await handlePaycheckDetected({ ...(group[0] as any), amount: totalAmount, date: latestDate })
   }
@@ -156,18 +155,18 @@ export async function webhookHandler(req: FastifyRequest, reply: FastifyReply) {
         const accountIds = await getAccountIdsForItem(itemId)
         if (!accountIds.length) return
 
-        const { data: recentTx } = await db
-          .from('transactions')
-          .select('*')
-          .in('account_id', accountIds)
-          .order('created_at', { ascending: false })
-          .limit(stats.added + stats.modified)
+        const recentTx = await sql<Array<any>>`
+          SELECT * FROM transactions
+          WHERE account_id = ANY(${sql.array(accountIds)})
+          ORDER BY created_at DESC
+          LIMIT ${stats.added + stats.modified}
+        `
 
-        for (const tx of recentTx ?? []) {
+        for (const tx of recentTx) {
           await checkAlertsForTransaction(tx)
         }
 
-        await runPaycheckCheckForTransactions(recentTx ?? [])
+        await runPaycheckCheckForTransactions(recentTx)
       }
     } catch (err) {
       req.log.error(err, 'Webhook processing error')

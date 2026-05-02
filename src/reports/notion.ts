@@ -1,5 +1,5 @@
 import { Client } from '@notionhq/client'
-import { db } from '../db/client.js'
+import { sql } from '../db/client.js'
 import type { PeriodAggregates } from '../types.js'
 
 if (!process.env.NOTION_TOKEN) throw new Error('NOTION_TOKEN must be set')
@@ -9,11 +9,9 @@ const notion = new Client({ auth: process.env.NOTION_TOKEN })
 const ROOT_PAGE_ID = process.env.NOTION_ROOT_PAGE_ID
 
 async function getOrCreatePage(semanticId: string, title: string, parentId: string): Promise<string> {
-  const { data } = await db
-    .from('notion_pages')
-    .select('notion_page_id')
-    .eq('id', semanticId)
-    .single()
+  const [data] = await sql<Array<{ notion_page_id: string }>>`
+    SELECT notion_page_id FROM notion_pages WHERE id = ${semanticId} LIMIT 1
+  `
 
   if (data) return data.notion_page_id
 
@@ -24,7 +22,7 @@ async function getOrCreatePage(semanticId: string, title: string, parentId: stri
     },
   })
 
-  await db.from('notion_pages').insert({ id: semanticId, notion_page_id: page.id })
+  await sql`INSERT INTO notion_pages (id, notion_page_id) VALUES (${semanticId}, ${page.id})`
   return page.id
 }
 
@@ -292,11 +290,25 @@ function notionTableRow(cells: string[]): object {
 }
 
 export async function writeRecentTransactions(): Promise<void> {
-  const { data } = await db
-    .from('transactions')
-    .select('merchant_name, amount, date, category, category_confidence, is_income, flagged_for_review, accounts(name, mask)')
-    .order('date', { ascending: false })
-    .limit(100)
+  const data = await sql<Array<{
+    merchant_name: string | null
+    amount: number
+    date: string
+    category: string | null
+    category_confidence: number | null
+    is_income: boolean
+    flagged_for_review: boolean
+    account_name: string | null
+    account_mask: string | null
+  }>>`
+    SELECT t.merchant_name, t.amount, t.date, t.category, t.category_confidence,
+           t.is_income, t.flagged_for_review,
+           a.name AS account_name, a.mask AS account_mask
+    FROM transactions t
+    LEFT JOIN accounts a ON a.id = t.account_id
+    ORDER BY t.date DESC
+    LIMIT 100
+  `
 
   const pageId = await getOrCreatePage('recent_transactions', '🔍 Recent Transactions', ROOT_PAGE_ID)
 
@@ -308,15 +320,14 @@ export async function writeRecentTransactions(): Promise<void> {
     cursor = existing.has_more ? existing.next_cursor ?? undefined : undefined
   } while (cursor)
 
-  if (!data?.length) {
+  if (!data.length) {
     await notion.blocks.children.append({ block_id: pageId, children: [bullet('No transactions yet.')] as any })
     return
   }
 
   const headerRow = notionTableRow(['Date', 'Merchant', 'Amount', 'Category', 'Conf %', 'Account', 'Notes'])
   const dataRows = data.map(tx => {
-    const account = (tx.accounts as any)
-    const acctLabel = account ? `${account.name}${account.mask ? ' ···' + account.mask : ''}` : ''
+    const acctLabel = tx.account_name ? `${tx.account_name}${tx.account_mask ? ' ···' + tx.account_mask : ''}` : ''
     const notes = [tx.flagged_for_review ? '🚩' : '', tx.is_income ? '↓ income' : ''].filter(Boolean).join(' ')
     return notionTableRow([
       tx.date,
@@ -343,12 +354,19 @@ export async function writeRecentTransactions(): Promise<void> {
 }
 
 export async function writeFlaggedTransactions(): Promise<void> {
-  const { data } = await db
-    .from('transactions')
-    .select('merchant_name, amount, date, category, category_confidence')
-    .eq('flagged_for_review', true)
-    .order('date', { ascending: false })
-    .limit(200)
+  const data = await sql<Array<{
+    merchant_name: string | null
+    amount: number
+    date: string
+    category: string | null
+    category_confidence: number | null
+  }>>`
+    SELECT merchant_name, amount, date, category, category_confidence
+    FROM transactions
+    WHERE flagged_for_review = true
+    ORDER BY date DESC
+    LIMIT 200
+  `
 
   const flaggedId = await getOrCreatePage('flagged_transactions', '🚩 Flagged Transactions', ROOT_PAGE_ID)
 
@@ -360,7 +378,7 @@ export async function writeFlaggedTransactions(): Promise<void> {
     cursor = existing.has_more ? existing.next_cursor ?? undefined : undefined
   } while (cursor)
 
-  if (!data?.length) {
+  if (!data.length) {
     await notion.blocks.children.append({ block_id: flaggedId, children: [bullet('No flagged transactions.')] as any })
     return
   }

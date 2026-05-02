@@ -1,6 +1,6 @@
 import cron from 'node-cron'
 import { runMonthlyReport, runYearlyReport, handlePaycheckDetected } from './generate.js'
-import { db } from '../db/client.js'
+import { sql } from '../db/client.js'
 
 export function startCronJobs(): void {
   cron.schedule('0 8 1 * *', async () => {
@@ -24,19 +24,18 @@ export function startCronJobs(): void {
   cron.schedule('0 9 * * *', async () => {
     console.log('Running daily paycheck catch-up check')
     try {
-      const { data: patterns } = await db.from('paycheck_patterns').select('pattern')
-      if (!patterns?.length) return
+      const patterns = await sql<Array<{ pattern: string }>>`SELECT pattern FROM paycheck_patterns`
+      if (!patterns.length) return
 
       const sevenDaysAgo = new Date(Date.now() - 7 * 24 * 60 * 60 * 1000).toISOString()
 
-      const { data: incomeTxs } = await db
-        .from('transactions')
-        .select('*')
-        .eq('is_income', true)
-        .gte('created_at', sevenDaysAgo)
-        .order('date', { ascending: false })
+      const incomeTxs = await sql<Array<{ merchant_name: string | null; amount: number; date: string; [k: string]: any }>>`
+        SELECT * FROM transactions
+        WHERE is_income = true AND created_at >= ${sevenDaysAgo}
+        ORDER BY date DESC
+      `
 
-      const matching = (incomeTxs ?? []).filter(tx => {
+      const matching = incomeTxs.filter(tx => {
         const name = (tx.merchant_name ?? '').toLowerCase()
         return patterns.some(p => name.includes(p.pattern.toLowerCase()))
       })
@@ -53,20 +52,18 @@ export function startCronJobs(): void {
         const windowStart = new Date(txDate.getTime() - 2 * 24 * 60 * 60 * 1000).toISOString()
         const windowEnd = new Date(txDate.getTime() + 2 * 24 * 60 * 60 * 1000).toISOString()
 
-        const { data: existing } = await db
-          .from('savings_events')
-          .select('id')
-          .gte('created_at', windowStart)
-          .lte('created_at', windowEnd)
-          .limit(1)
-          .single()
+        const existing = await sql<Array<{ id: string }>>`
+          SELECT id FROM savings_events
+          WHERE created_at >= ${windowStart} AND created_at <= ${windowEnd}
+          LIMIT 1
+        `
 
-        if (!existing) {
+        if (!existing.length) {
           const group = byDate[date]
           const totalAmount = group.reduce((s, tx) => s + Number(tx.amount), 0)
           const combined = { ...group[0], amount: totalAmount, date }
           console.log(`Catch-up: firing paycheck report for ${date}, combined amount ${totalAmount}`)
-          await handlePaycheckDetected(combined).catch(err =>
+          await handlePaycheckDetected(combined as any).catch(err =>
             console.error('Catch-up paycheck report failed:', err)
           )
           break // one report per day max

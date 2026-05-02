@@ -1,5 +1,5 @@
 import { anthropic } from '../categorize/claude.js'
-import { db } from '../db/client.js'
+import { sql } from '../db/client.js'
 import { getAggregatesForPeriod } from './aggregate.js'
 import { sendEmail } from '../alerts/gmail.js'
 import type { PeriodAggregates, Transaction } from '../types.js'
@@ -139,28 +139,35 @@ Be concrete. Factor in credit obligations. No preamble.`
 }
 
 async function getPaycheckAllocation(paycheckAmount: number, agg: PeriodAggregates): Promise<string> {
-  const { data: goalRow } = await db
-    .from('savings_goals')
-    .select('target_type, target_value')
-    .order('created_at', { ascending: false })
-    .limit(1)
-    .single()
+  const [goalRow] = await sql<Array<{ target_type: string; target_value: number }>>`
+    SELECT target_type, target_value FROM savings_goals
+    ORDER BY created_at DESC
+    LIMIT 1
+  `
 
   const savingsGoalDesc = goalRow
     ? goalRow.target_type === 'percentage'
-      ? `${goalRow.target_value}% of paycheck ($${(paycheckAmount * goalRow.target_value / 100).toFixed(2)})`
+      ? `${goalRow.target_value}% of paycheck ($${(paycheckAmount * Number(goalRow.target_value) / 100).toFixed(2)})`
       : `$${Number(goalRow.target_value).toFixed(2)} fixed per paycheck`
     : '$100/month'
 
-  const [{ data: allRecurring }, { data: latestGoals }] = await Promise.all([
-    db.from('recurring_charges').select('merchant_name, average_amount').eq('is_active', true),
-    db.from('insights').select('goals').not('goals', 'is', null).order('generated_at', { ascending: false }).limit(1).single(),
+  const [allRecurring, latestGoalsRows] = await Promise.all([
+    sql<Array<{ merchant_name: string | null; average_amount: number | null }>>`
+      SELECT merchant_name, average_amount FROM recurring_charges WHERE is_active = true
+    `,
+    sql<Array<{ goals: string }>>`
+      SELECT goals FROM insights
+      WHERE goals IS NOT NULL
+      ORDER BY generated_at DESC
+      LIMIT 1
+    `,
   ])
+  const latestGoals = latestGoalsRows[0]
 
-  const recurringTotal = (allRecurring ?? []).reduce((s, r) => s + Number(r.average_amount ?? 0), 0)
+  const recurringTotal = allRecurring.reduce((s, r) => s + Number(r.average_amount ?? 0), 0)
 
-  const recurringLines = (allRecurring ?? []).length
-    ? (allRecurring ?? []).map(r => `  ${r.merchant_name}: ~$${Number(r.average_amount).toFixed(2)}/mo`).join('\n')
+  const recurringLines = allRecurring.length
+    ? allRecurring.map(r => `  ${r.merchant_name}: ~$${Number(r.average_amount).toFixed(2)}/mo`).join('\n')
     : '  None'
 
   const creditLines = agg.creditSummary.cards
@@ -253,13 +260,13 @@ export const getSavingsRecommendationForRegen = getSavingsRecommendation
 export const getPaycheckAllocationForRegen = getPaycheckAllocation
 
 export async function handlePaycheckDetected(tx: Transaction): Promise<void> {
-  const { data: lastEvent } = await db
-    .from('savings_events')
-    .select('created_at, period_end')
-    .order('created_at', { ascending: false })
-    .limit(1)
+  const lastEvent = await sql<Array<{ created_at: string; period_end: string }>>`
+    SELECT created_at, period_end FROM savings_events
+    ORDER BY created_at DESC
+    LIMIT 1
+  `
 
-  const lastPeriodEnd = lastEvent?.[0]?.period_end
+  const lastPeriodEnd = lastEvent[0]?.period_end
   const defaultStart = new Date(Date.now() - 14 * 24 * 60 * 60 * 1000).toISOString().split('T')[0]
   let periodStart = defaultStart
   if (lastPeriodEnd) {
@@ -280,30 +287,26 @@ export async function handlePaycheckDetected(tx: Transaction): Promise<void> {
     getPaycheckAllocation(tx.amount, agg),
   ])
 
-  await db.from('insights').insert({
-    period_start: periodStart,
-    period_end: periodEnd,
-    period_type: 'biweekly',
-    raw_analysis: narrative,
-    key_findings: { savings_recommendation: savingsRec, paycheck_allocation: allocation },
-  })
+  const keyFindings = JSON.stringify({ savings_recommendation: savingsRec, paycheck_allocation: allocation })
+  await sql`
+    INSERT INTO insights (period_start, period_end, period_type, raw_analysis, key_findings)
+    VALUES (${periodStart}, ${periodEnd}, 'biweekly', ${narrative}, ${keyFindings}::jsonb)
+  `
 
-  await db.from('savings_events').insert({
-    paycheck_amount: tx.amount,
-    period_start: periodStart,
-    period_end: periodEnd,
-    notes: savingsRec,
-  })
+  await sql`
+    INSERT INTO savings_events (paycheck_amount, period_start, period_end, notes)
+    VALUES (${tx.amount}, ${periodStart}, ${periodEnd}, ${savingsRec})
+  `
 
   if (agg.creditSummary.trend === 'growing') {
-    const { data: priorSnapshots } = await db
-      .from('balance_snapshots')
-      .select('account_id, balance, snapshot_at')
-      .order('snapshot_at', { ascending: false })
-      .limit(agg.creditSummary.cards.length * 4)
+    const priorSnapshots = await sql<Array<{ account_id: string; balance: number; snapshot_at: string }>>`
+      SELECT account_id, balance, snapshot_at FROM balance_snapshots
+      ORDER BY snapshot_at DESC
+      LIMIT ${agg.creditSummary.cards.length * 4}
+    `
 
     const byAccount: Record<string, number[]> = {}
-    for (const snap of priorSnapshots ?? []) {
+    for (const snap of priorSnapshots) {
       if (!byAccount[snap.account_id]) byAccount[snap.account_id] = []
       if (byAccount[snap.account_id].length < 3) byAccount[snap.account_id].push(Number(snap.balance))
     }
@@ -361,12 +364,10 @@ export async function runMonthlyReport(year: number, month: number): Promise<voi
   const agg = await getAggregatesForPeriod(periodStart, periodEnd, 'monthly')
   const narrative = await generateNarrative(agg, 'monthly')
 
-  await db.from('insights').insert({
-    period_start: periodStart,
-    period_end: periodEnd,
-    period_type: 'monthly',
-    raw_analysis: narrative,
-  })
+  await sql`
+    INSERT INTO insights (period_start, period_end, period_type, raw_analysis)
+    VALUES (${periodStart}, ${periodEnd}, 'monthly', ${narrative})
+  `
 
   const topCategories = Object.entries(agg.categoryBreakdown)
     .sort((a, b) => b[1] - a[1])
@@ -404,12 +405,10 @@ export async function runYearlyReport(year: number): Promise<void> {
 
   const narrative = await generateNarrative(agg, 'yearly')
 
-  await db.from('insights').insert({
-    period_start: periodStart,
-    period_end: periodEnd,
-    period_type: 'yearly',
-    raw_analysis: narrative,
-  })
+  await sql`
+    INSERT INTO insights (period_start, period_end, period_type, raw_analysis)
+    VALUES (${periodStart}, ${periodEnd}, 'yearly', ${narrative})
+  `
 
   const baseUrl = process.env.APP_URL ?? 'https://rorakhit-autobudget.up.railway.app'
   const emailBody = [

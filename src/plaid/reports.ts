@@ -1,6 +1,6 @@
 import { checkAuth, checkAuthPage } from '../auth.js'
 import type { FastifyRequest, FastifyReply } from 'fastify'
-import { db } from '../db/client.js'
+import { sql } from '../db/client.js'
 import { getAggregatesForPeriod } from '../reports/aggregate.js'
 import { readFileSync } from 'fs'
 import { fileURLToPath } from 'url'
@@ -17,8 +17,11 @@ export async function reportsPageHandler(req: FastifyRequest, reply: FastifyRepl
 export async function deleteInsightHandler(req: FastifyRequest, reply: FastifyReply) {
   if (!checkAuth(req, reply)) return
   const { id } = req.params as { id: string }
-  const { error } = await db.from('insights').delete().eq('id', id)
-  if (error) return reply.code(500).send({ error: error.message })
+  try {
+    await sql`DELETE FROM insights WHERE id = ${id}`
+  } catch (e: any) {
+    return reply.code(500).send({ error: e.message })
+  }
   await reply.send({ ok: true })
 }
 
@@ -28,31 +31,33 @@ export async function saveGoalsHandler(req: FastifyRequest, reply: FastifyReply)
   const { id, goals } = ((req.body as any)._parsed ?? req.body) as { id: string; goals: string }
   if (!id) return reply.code(400).send({ error: 'id required' })
 
-  const { error } = await db.from('insights').update({ goals: goals ?? null }).eq('id', id)
-  if (error) return reply.code(500).send({ error: error.message })
+  try {
+    await sql`UPDATE insights SET goals = ${goals ?? null} WHERE id = ${id}`
+  } catch (e: any) {
+    return reply.code(500).send({ error: e.message })
+  }
   await reply.send({ ok: true })
 }
 
 export async function reportsDataHandler(req: FastifyRequest, reply: FastifyReply) {
   if (!checkAuth(req, reply)) return
 
-  const { data: insights } = await db
-    .from('insights')
-    .select('*')
-    .order('period_start', { ascending: false })
-    .limit(50)
+  const insights = await sql<Array<Record<string, any>>>`
+    SELECT * FROM insights
+    ORDER BY period_start DESC
+    LIMIT 50
+  `
 
   // Attach category breakdown from transactions for each insight
-  const enriched = await Promise.all((insights ?? []).map(async insight => {
-    const { data: txs } = await db
-      .from('transactions')
-      .select('amount, category, is_income')
-      .gte('date', insight.period_start)
-      .lte('date', insight.period_end)
+  const enriched = await Promise.all(insights.map(async insight => {
+    const txs = await sql<Array<{ amount: number; category: string | null; is_income: boolean }>>`
+      SELECT amount, category, is_income FROM transactions
+      WHERE date >= ${insight.period_start} AND date <= ${insight.period_end}
+    `
 
-    const spendTx = (txs ?? []).filter(t => !t.is_income)
+    const spendTx = txs.filter(t => !t.is_income)
     const totalSpend = spendTx.reduce((s, t) => s + Number(t.amount), 0)
-    const totalIncome = (txs ?? []).filter(t => t.is_income).reduce((s, t) => s + Number(t.amount), 0)
+    const totalIncome = txs.filter(t => t.is_income).reduce((s, t) => s + Number(t.amount), 0)
 
     const categoryBreakdown: Record<string, number> = {}
     for (const tx of spendTx) {
@@ -83,14 +88,13 @@ export async function spendingTransactionsHandler(req: FastifyRequest, reply: Fa
   const days = Math.min(Math.max(parseInt(daysStr ?? '30', 10), 1), 365)
   const periodStart = new Date(Date.now() - days * 24 * 60 * 60 * 1000).toISOString().split('T')[0]
 
-  const { data: txs } = await db
-    .from('transactions')
-    .select('merchant_name, amount, date, category')
-    .eq('is_income', false)
-    .gte('date', periodStart)
-    .order('date', { ascending: false })
+  const txs = await sql`
+    SELECT merchant_name, amount, date, category FROM transactions
+    WHERE is_income = false AND date >= ${periodStart}
+    ORDER BY date DESC
+  `
 
-  await reply.send(txs ?? [])
+  await reply.send(txs)
 }
 
 export async function spendingCategoryHandler(req: FastifyRequest, reply: FastifyReply) {
@@ -102,15 +106,13 @@ export async function spendingCategoryHandler(req: FastifyRequest, reply: Fastif
   const days = Math.min(Math.max(parseInt(daysStr ?? '30', 10), 1), 365)
   const periodStart = new Date(Date.now() - days * 24 * 60 * 60 * 1000).toISOString().split('T')[0]
 
-  const { data: txs } = await db
-    .from('transactions')
-    .select('merchant_name, amount, date, category')
-    .eq('is_income', false)
-    .eq('category', category)
-    .gte('date', periodStart)
-    .order('date', { ascending: false })
+  const txs = await sql`
+    SELECT merchant_name, amount, date, category FROM transactions
+    WHERE is_income = false AND category = ${category} AND date >= ${periodStart}
+    ORDER BY date DESC
+  `
 
-  await reply.send(txs ?? [])
+  await reply.send(txs)
 }
 
 export async function spendingPageHandler(req: FastifyRequest, reply: FastifyReply) {
