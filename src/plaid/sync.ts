@@ -1,7 +1,6 @@
 import { plaidClient } from './client.js'
 import { sql } from '../db/client.js'
 import { categorizeTransaction } from '../categorize/categorize.js'
-import { writeFlaggedTransactions, writeRecentTransactions } from '../reports/notion.js'
 import type { Transaction } from 'plaid'
 
 async function getAccountId(plaidAccountId: string): Promise<string | null> {
@@ -128,11 +127,6 @@ export async function syncTransactions(plaidItemId: string): Promise<{ added: nu
   await sql`UPDATE plaid_items SET cursor = ${cursor ?? null} WHERE id = ${plaidItemId}`
 
   await snapshotBalances(item.access_token)
-
-  await Promise.all([
-    writeFlaggedTransactions().catch(console.error),
-    writeRecentTransactions().catch(console.error),
-  ])
 
   return { added, modified, removed }
 }

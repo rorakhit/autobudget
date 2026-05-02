@@ -90,12 +90,6 @@ export interface SavingsEvent {
   created_at: string
 }
 
-export interface NotionPage {
-  id: string
-  notion_page_id: string
-  created_at: string
-}
-
 // ── Categorization ──────────────────────────────────────────────────────────
 
 export const CATEGORIES = [
