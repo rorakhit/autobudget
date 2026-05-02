@@ -53,7 +53,7 @@ export async function linkedAccountsHandler(req: FastifyRequest, reply: FastifyR
   const accountRows = itemIds.length > 0
     ? await sql<Array<{ plaid_item_id: string; name: string; type: string; subtype: string | null; mask: string | null }>>`
         SELECT plaid_item_id, name, type, subtype, mask FROM accounts
-        WHERE plaid_item_id = ANY(${sql.array(itemIds)})
+        WHERE plaid_item_id = ANY(${itemIds})
       `
     : []
 
@@ -122,7 +122,7 @@ export async function syncAllHandler(req: FastifyRequest, reply: FastifyReply) {
           const recentTx = accountIds.length > 0
             ? await sql<Array<any>>`
                 SELECT * FROM transactions
-                WHERE account_id = ANY(${sql.array(accountIds)})
+                WHERE account_id = ANY(${accountIds})
                 ORDER BY created_at DESC
                 LIMIT ${stats.added + stats.modified}
               `

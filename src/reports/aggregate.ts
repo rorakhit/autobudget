@@ -75,7 +75,7 @@ async function getCreditSummary(): Promise<CreditSummary> {
   const recentSnapshots = cardAccountIds.length > 0
     ? await sql<Array<{ account_id: string; balance: number; snapshot_at: string }>>`
         SELECT account_id, balance, snapshot_at FROM balance_snapshots
-        WHERE account_id = ANY(${sql.array(cardAccountIds)})
+        WHERE account_id = ANY(${cardAccountIds})
         ORDER BY snapshot_at DESC
         LIMIT ${cards.length * 3}
       `

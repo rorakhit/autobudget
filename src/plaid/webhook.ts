@@ -157,7 +157,7 @@ export async function webhookHandler(req: FastifyRequest, reply: FastifyReply) {
 
         const recentTx = await sql<Array<any>>`
           SELECT * FROM transactions
-          WHERE account_id = ANY(${sql.array(accountIds)})
+          WHERE account_id = ANY(${accountIds})
           ORDER BY created_at DESC
           LIMIT ${stats.added + stats.modified}
         `
